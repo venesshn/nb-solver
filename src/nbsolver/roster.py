@@ -13,7 +13,7 @@ DEFAULT_TEAM_COST_LIMIT = 200
 
 
 class Roster(BaseModel):
-    """Every copy a player owns. Duplicate slugs are allowed and meaningful."""
+    """Every copy a player owns. Duplicate unit ids are allowed and meaningful."""
 
     player_id: str = ""
     team_cost_limit: int = DEFAULT_TEAM_COST_LIMIT
@@ -21,7 +21,7 @@ class Roster(BaseModel):
 
     def add(
         self,
-        slug: str,
+        unit_id: int,
         *,
         level: int = MAX_LEVEL,
         luck: int = 0,
@@ -30,7 +30,7 @@ class Roster(BaseModel):
         manual: bool = True,
     ) -> OwnedUnit:
         owned = OwnedUnit(
-            slug=slug,
+            unit_id=unit_id,
             level=level,
             luck=luck,
             dupes=dupes,
@@ -40,26 +40,26 @@ class Roster(BaseModel):
         self.units.append(owned)
         return owned
 
-    def remove(self, slug: str) -> bool:
+    def remove(self, unit_id: int) -> bool:
         for i, owned in enumerate(self.units):
-            if owned.slug == slug:
+            if owned.unit_id == unit_id:
                 del self.units[i]
                 return True
         return False
 
-    def copies_of(self, slug: str) -> list[OwnedUnit]:
-        return [u for u in self.units if u.slug == slug]
+    def copies_of(self, unit_id: int) -> list[OwnedUnit]:
+        return [u for u in self.units if u.unit_id == unit_id]
 
     def merge_scan(self, scanned: list[OwnedUnit]) -> tuple[int, int]:
         """Fold box-scan results in without discarding hand-entered copies.
 
-        Returns (added, skipped). A re-scan tops up counts per slug rather than
+        Returns (added, skipped). A re-scan tops up counts per unit rather than
         replacing them, so manual corrections survive later scans.
         """
         added = skipped = 0
-        for slug in {u.slug for u in scanned}:
-            have = len(self.copies_of(slug))
-            incoming = [u for u in scanned if u.slug == slug]
+        for unit_id in {u.unit_id for u in scanned}:
+            have = len(self.copies_of(unit_id))
+            incoming = [u for u in scanned if u.unit_id == unit_id]
             for owned in incoming[have:]:
                 owned.manually_added = False
                 self.units.append(owned)
@@ -67,10 +67,10 @@ class Roster(BaseModel):
             skipped += min(have, len(incoming))
         return added, skipped
 
-    def team_cost(self, team: list[OwnedUnit], catalogue: dict[str, Unit]) -> int:
-        return sum(u.cost(catalogue[u.slug]) for u in team)
+    def team_cost(self, team: list[OwnedUnit], catalogue: dict[int, Unit]) -> int:
+        return sum(u.cost(catalogue[u.unit_id]) for u in team)
 
-    def fits_cost_limit(self, team: list[OwnedUnit], catalogue: dict[str, Unit]) -> bool:
+    def fits_cost_limit(self, team: list[OwnedUnit], catalogue: dict[int, Unit]) -> bool:
         return self.team_cost(team, catalogue) <= self.team_cost_limit
 
     def save(self, path: Path) -> None:

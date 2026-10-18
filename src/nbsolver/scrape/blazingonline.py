@@ -18,7 +18,16 @@ from nbsolver.missions import (
     Stage,
     WaveSpawn,
 )
-from nbsolver.models import AttackRange, Element
+from nbsolver.models import (
+    Ability,
+    AttackRange,
+    Element,
+    Jutsu,
+    JutsuShape,
+    Skill,
+    StatLevel,
+    Unit,
+)
 
 BASE = "https://www.blazingonline.wiki/"
 ATTRIBUTION = "blazingonline.wiki (Project: Rebirth server data)"
@@ -59,6 +68,15 @@ class BlazingOnline:
 
     def mission(self, page: str) -> Mission:
         return parse_mission(self.raw_mission(page))
+
+    def unit_index(self) -> dict[str, Any]:
+        return self._get("data/units.json")
+
+    def raw_unit(self, unit_id: int) -> dict[str, Any]:
+        return self._get(f"data/units/{unit_id}.json")
+
+    def unit(self, summary: dict[str, Any]) -> Unit:
+        return parse_unit(summary, self.raw_unit(summary["id"]))
 
 
 def _element(value: str | None) -> Element | None:
@@ -200,4 +218,73 @@ def parse_mission(raw: dict[str, Any]) -> Mission:
         mode=_text(raw.get("mode")),
         stages=stages,
         sources=sources,
+    )
+
+
+def _shape(value: Any) -> JutsuShape | None:
+    try:
+        return JutsuShape(_text(value).strip().capitalize())
+    except ValueError:
+        return None
+
+
+def _jutsu(raw: dict[str, Any] | None) -> Jutsu | None:
+    if not raw:
+        return None
+    return Jutsu(
+        name=_text(raw.get("n")),
+        description=_text(raw.get("d")),
+        chakra=raw.get("c"),
+        shape=_shape(raw.get("shape")),
+        position=_text(raw.get("position")),
+    )
+
+
+def _skill(raw: dict[str, Any] | None) -> Skill | None:
+    if not raw:
+        return None
+    return Skill(name=_text(raw.get("n")), description=_text(raw.get("d")))
+
+
+def parse_unit(summary: dict[str, Any], detail: dict[str, Any]) -> Unit:
+    """`summary` is an entry from units.json; `detail` is units/<id>.json."""
+    stats = detail.get("stats") or {}
+    forms = detail.get("forms") or {}
+
+    return Unit(
+        unit_id=summary["id"],
+        name=_text(summary.get("n")),
+        title=_text(summary.get("t")),
+        element=_element(summary.get("e")) or Element.HEART,
+        rarity=summary.get("r") or 0,
+        range=_range(_text(summary.get("rg"))),
+        cost=stats.get("cost") or summary.get("c") or 0,
+        cost_all_abilities=stats.get("costAllAbilities"),
+        max_level=stats.get("maxLevel") or detail.get("lv") or 1,
+        luck_max=stats.get("luckMax") or 0,
+        speed=stats.get("speed") or 0,
+        levels=[
+            StatLevel(
+                label=_text(entry.get("label")),
+                level=entry.get("lv") or 0,
+                health=entry.get("hp") or 0,
+                attack=entry.get("atk") or 0,
+                speed=entry.get("spd") or 0,
+            )
+            for entry in stats.get("levels") or []
+        ],
+        ninjutsu=_jutsu(detail.get("ninjutsu")),
+        secret_technique=_jutsu(detail.get("ultimate") or detail.get("secret")),
+        field_skill=_skill(detail.get("field")),
+        buddy_skill=_skill(detail.get("buddy")),
+        abilities=[
+            Ability(
+                name=_text(item.get("n")),
+                description=_text(item.get("d")),
+                unlock=_text(item.get("u")),
+            )
+            for item in detail.get("abilities") or []
+        ],
+        awaken_to=forms.get("awakenTo"),
+        family=list(forms.get("family") or []),
     )

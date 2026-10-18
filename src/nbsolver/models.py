@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
@@ -9,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 MAX_LEVEL = 100
 MAX_LUCK = 99
 MAX_DUPES = 5
+
+MULTIPLIER_RE = re.compile(r"([\d.]+)\s*x\s*attack", re.IGNORECASE)
 
 
 class Element(StrEnum):
@@ -30,46 +33,117 @@ class JutsuShape(StrEnum):
     CIRCLE = "Circle"
     CONE = "Cone"
     LINE = "Line"
+    RECTANGLE = "Rectangle"
     SELF = "Self"
 
 
-class Jutsu(BaseModel):
-    name: str
-    chakra: int
-    shape: JutsuShape
-    range: AttackRange
-    hits: int | None = None
+class Skill(BaseModel):
+    name: str = ""
     description: str = ""
+
+
+class Ability(Skill):
+    unlock: str = ""
+
+
+class Jutsu(Skill):
+    chakra: int | None = None
+    shape: JutsuShape | None = None
+    position: str = ""
+
+    @property
+    def multiplier(self) -> float | None:
+        match = MULTIPLIER_RE.search(self.description)
+        return float(match.group(1)) if match else None
+
+
+class StatLevel(BaseModel):
+    label: str = ""
+    level: int
+    health: int
+    attack: int
+    speed: int = 0
 
 
 class Unit(BaseModel):
     """A ninja as defined by the game, independent of any player."""
 
-    slug: str
+    unit_id: int
     name: str
-    title: str
+    title: str = ""
     element: Element
-    rarity: int
-    range: AttackRange
-    base_health: int
-    base_strength: int
-    hits: int = 1
-    # Index i is the cost after i dupes, so cost_by_dupes[0] is the un-duped cost.
-    cost_by_dupes: list[int]
+    rarity: int = 0
+    range: AttackRange | None = None
+    affiliations: list[str] = Field(default_factory=list)
+
+    cost: int = 0
+    # Cost once every ability is unlocked, which is the floor a duped copy reaches.
+    cost_all_abilities: int | None = None
+    max_level: int = MAX_LEVEL
+    luck_max: int = MAX_LUCK
+    speed: int = 0
+    levels: list[StatLevel] = Field(default_factory=list)
+
     ninjutsu: Jutsu | None = None
     secret_technique: Jutsu | None = None
-    field_skill: str = ""
-    buddy_skill: str = ""
+    field_skill: Skill | None = None
+    buddy_skill: Skill | None = None
+    abilities: list[Ability] = Field(default_factory=list)
+
+    awaken_to: int | None = None
+    family: list[int] = Field(default_factory=list)
 
     @property
     def min_cost(self) -> int:
-        return min(self.cost_by_dupes)
+        return self.cost_all_abilities if self.cost_all_abilities is not None else self.cost
+
+    @property
+    def _growth_points(self) -> list[StatLevel]:
+        """One entry per distinct level, keeping the first (pre-Ultimate) reading."""
+        seen: dict[int, StatLevel] = {}
+        for entry in self.levels:
+            seen.setdefault(entry.level, entry)
+        return sorted(seen.values(), key=lambda e: e.level)
+
+    def stats_at(self, level: int) -> StatLevel:
+        """Blazing scales stats linearly between level 1 and max, so interpolate."""
+        points = self._growth_points
+        if not points:
+            return StatLevel(level=level, health=0, attack=0)
+        if len(points) == 1:
+            return points[0]
+
+        low, high = points[0], points[-1]
+        level = max(low.level, min(level, high.level))
+        span = high.level - low.level
+        ratio = 0.0 if span == 0 else (level - low.level) / span
+
+        def lerp(a: int, b: int) -> int:
+            return round(a + (b - a) * ratio)
+
+        return StatLevel(
+            label=f"Lv {level}",
+            level=level,
+            health=lerp(low.health, high.health),
+            attack=lerp(low.attack, high.attack),
+            speed=lerp(low.speed, high.speed),
+        )
+
+    def cost_with_abilities(self, unlocked: int) -> int:
+        """Interpolated between base and all-abilities cost; exact steps unverified."""
+        floor = self.min_cost
+        total = len(self.abilities)
+        if total == 0 or unlocked <= 0:
+            return self.cost
+        if unlocked >= total:
+            return floor
+        return round(self.cost + (floor - self.cost) * (unlocked / total))
 
 
 class OwnedUnit(BaseModel):
     """A specific copy in a player's box, at its current progression."""
 
-    slug: str
+    unit_id: int
     level: int = MAX_LEVEL
     luck: int = 0
     dupes: int = 0
@@ -99,5 +173,12 @@ class OwnedUnit(BaseModel):
             raise ValueError(f"dupes must be 0..{MAX_DUPES}, got {v}")
         return v
 
+    def unlocked_count(self, unit: Unit) -> int:
+        named = len(self.abilities_unlocked)
+        return min(max(named, self.dupes), len(unit.abilities))
+
     def cost(self, unit: Unit) -> int:
-        return unit.cost_by_dupes[min(self.dupes, len(unit.cost_by_dupes) - 1)]
+        return unit.cost_with_abilities(self.unlocked_count(unit))
+
+    def stats(self, unit: Unit) -> StatLevel:
+        return unit.stats_at(self.level)
