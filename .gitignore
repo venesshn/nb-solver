@@ -14,6 +14,7 @@ data/raw/
 data/extracted/
 data/frames/
 data/cache/
+data/analysis/
 *.ipa
 *.mp4
 
