@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Extracted game client data and gameplay captures - do not redistribute
+data/raw/
+data/extracted/
+data/frames/
+*.ipa
+*.mp4
+
+# Local run logs
+extract_log.txt
+lint.txt
+test_log.txt
+git.txt
