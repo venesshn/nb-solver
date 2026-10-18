@@ -1,0 +1,51 @@
+{
+  "player_id": "REDACTED",
+  "team_cost_limit": 200,
+  "units": [
+    {
+      "unit_id": 11066,
+      "level": 150,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 10,
+      "abilities_unlocked": [],
+      "manually_added": true
+    },
+    {
+      "unit_id": 10966,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": true
+    },
+    {
+      "unit_id": 12416,
+      "level": 135,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 7,
+      "abilities_unlocked": [],
+      "manually_added": true
+    },
+    {
+      "unit_id": 10906,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": true
+    },
+    {
+      "unit_id": 12636,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": true
+    }
+  ]
+}

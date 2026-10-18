@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from itertools import pairwise
 
 from pydantic import BaseModel, Field, field_validator
 
 MAX_LEVEL = 100
+# Ten limit breaks of five levels each sit on top of the base cap.
+MAX_LIMIT_BREAK_LEVEL = 150
 MAX_LUCK = 99
 MAX_DUPES = 5
 
@@ -80,6 +83,7 @@ class Unit(BaseModel):
     # Cost once every ability is unlocked, which is the floor a duped copy reaches.
     cost_all_abilities: int | None = None
     max_level: int = MAX_LEVEL
+    max_level_limit_break: int = MAX_LEVEL
     luck_max: int = MAX_LUCK
     speed: int = 0
     levels: list[StatLevel] = Field(default_factory=list)
@@ -106,15 +110,20 @@ class Unit(BaseModel):
         return sorted(seen.values(), key=lambda e: e.level)
 
     def stats_at(self, level: int) -> StatLevel:
-        """Blazing scales stats linearly between level 1 and max, so interpolate."""
+        """Exact at every published anchor, linear between neighbouring ones."""
         points = self._growth_points
         if not points:
             return StatLevel(level=level, health=0, attack=0)
         if len(points) == 1:
             return points[0]
 
+        level = max(points[0].level, min(level, points[-1].level))
         low, high = points[0], points[-1]
-        level = max(low.level, min(level, high.level))
+        for left, right in pairwise(points):
+            if left.level <= level <= right.level:
+                low, high = left, right
+                break
+
         span = high.level - low.level
         ratio = 0.0 if span == 0 else (level - low.level) / span
 
@@ -155,8 +164,8 @@ class OwnedUnit(BaseModel):
     @field_validator("level")
     @classmethod
     def _check_level(cls, v: int) -> int:
-        if not 1 <= v <= MAX_LEVEL:
-            raise ValueError(f"level must be 1..{MAX_LEVEL}, got {v}")
+        if not 1 <= v <= MAX_LIMIT_BREAK_LEVEL:
+            raise ValueError(f"level must be 1..{MAX_LIMIT_BREAK_LEVEL}, got {v}")
         return v
 
     @field_validator("luck")

@@ -261,6 +261,9 @@ def parse_unit(summary: dict[str, Any], detail: dict[str, Any]) -> Unit:
         cost=stats.get("cost") or summary.get("c") or 0,
         cost_all_abilities=stats.get("costAllAbilities"),
         max_level=stats.get("maxLevel") or detail.get("lv") or 1,
+        max_level_limit_break=(
+            stats.get("maxLevelLimitBreak") or stats.get("maxLevel") or detail.get("lv") or 1
+        ),
         luck_max=stats.get("luckMax") or 0,
         speed=stats.get("speed") or 0,
         levels=[
