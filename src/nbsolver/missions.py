@@ -60,33 +60,83 @@ class ClearCondition(BaseModel):
         return cls(kind=ConditionKind.OTHER, description=cleaned, pearls=pearls)
 
 
-class EnemyStats(BaseModel):
-    """An enemy as it appears in one specific stage."""
+class EnemySkill(BaseModel):
+    slot: str = ""
+    name: str = ""
+    description: str = ""
+    range: str = ""
+    targets: str = ""
 
+
+class EnemyStats(BaseModel):
+    """An enemy as it appears in one specific map."""
+
+    key: str = ""
     name: str
     element: Element
     hp: int
     attack: int
+    level: int = 1
     range: AttackRange | None = None
+    range_text: str = ""
     is_boss: bool = False
+    carries: str = ""
+    skills: list[EnemySkill] = Field(default_factory=list)
+    field_skill: str = ""
+    # Human-readable AI summary, plus the underlying state machine when published.
+    ai_summary: list[str] = Field(default_factory=list)
+    ai_states: list[str] = Field(default_factory=list)
+
+
+class WaveSpawn(BaseModel):
+    number: int
+    trigger: str = ""
+    rows: int = 0
+
+
+class EnemySet(BaseModel):
+    """One possible enemy line-up for a map; `weight` is its chance of being rolled."""
+
+    weight: float = 100.0
+    enemies: list[EnemyStats] = Field(default_factory=list)
+    waves: list[WaveSpawn] = Field(default_factory=list)
+
+
+class BattleMap(BaseModel):
+    number: int
+    clear: str = ""
+    sets: list[EnemySet] = Field(default_factory=list)
+
+    @property
+    def is_random(self) -> bool:
+        return len(self.sets) > 1
 
 
 class Stage(BaseModel):
     name: str
     rank: Rank
     stamina: int
+    stage_id: int | None = None
+    clear: str = ""
+    availability: str = ""
     boss_name: str = ""
     boss_element: Element | None = None
     enemies: list[EnemyStats] = Field(default_factory=list)
+    maps: list[BattleMap] = Field(default_factory=list)
     conditions: list[ClearCondition] = Field(default_factory=list)
 
     def conditions_for(self, kind: ConditionKind) -> list[ClearCondition]:
         return [c for c in self.conditions if c.kind == kind]
 
+    @property
+    def has_random_sets(self) -> bool:
+        return any(m.is_random for m in self.maps)
+
 
 class Mission(BaseModel):
     slug: str
     name: str
+    mode: str = ""
     stages: list[Stage] = Field(default_factory=list)
     # Where the numbers came from, since CC BY-SA requires attribution.
     sources: list[str] = Field(default_factory=list)
