@@ -13,6 +13,7 @@ wheels/
 data/raw/
 data/extracted/
 data/frames/
+data/cache/
 *.ipa
 *.mp4
 

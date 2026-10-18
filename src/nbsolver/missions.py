@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -23,6 +24,14 @@ class Rank(StrEnum):
 class ConditionKind(StrEnum):
     ELEMENT_ONLY = "element_only"
     COST_CAP = "cost_cap"
+    AFFILIATION_ONLY = "affiliation_only"
+    REQUIRE_UNITS = "require_units"
+    TURN_LIMIT = "turn_limit"
+    NO_CONTINUES = "no_continues"
+    NO_AILMENTS = "no_ailments"
+    NINJUTSU_FINISH = "ninjutsu_finish"
+    COMBO_FINISH = "combo_finish"
+    DEFEAT_ALL = "defeat_all"
     DROP_COMPLETE = "drop_complete"
     OTHER = "other"
 
@@ -35,29 +44,46 @@ class ClearCondition(BaseModel):
     pearls: int = 0
     element: Element | None = None
     max_cost: int | None = None
+    max_turns: int | None = None
+    affiliation: str = ""
+    required_unit: str = ""
+    required_count: int | None = None
 
     @classmethod
     def parse(cls, text: str, pearls: int = 0) -> ClearCondition:
-        cleaned = text.strip()
+        cleaned = " ".join(text.split())
         lowered = cleaned.lower()
+        build = partial(cls, description=cleaned, pearls=pearls)
 
         if match := re.match(r"(heart|skill|body|bravery|wisdom)\s+elementals?\s+only", lowered):
-            return cls(
-                kind=ConditionKind.ELEMENT_ONLY,
-                description=cleaned,
-                pearls=pearls,
-                element=Element(match.group(1).capitalize()),
+            return build(
+                kind=ConditionKind.ELEMENT_ONLY, element=Element(match.group(1).capitalize())
             )
         if match := re.search(r"cost\s+(\d+)\s+or\s+lower", lowered):
-            return cls(
-                kind=ConditionKind.COST_CAP,
-                description=cleaned,
-                pearls=pearls,
-                max_cost=int(match.group(1)),
+            return build(kind=ConditionKind.COST_CAP, max_cost=int(match.group(1)))
+        if match := re.search(r"within\s+(\d+)\s+turns?", lowered):
+            return build(kind=ConditionKind.TURN_LIMIT, max_turns=int(match.group(1)))
+        if match := re.search(r"use only\s+(.+?)\s+characters", cleaned, re.IGNORECASE):
+            return build(kind=ConditionKind.AFFILIATION_ONLY, affiliation=match.group(1))
+        if match := re.search(r"have\s+(\d+)\+?\s+(.+?)\s+characters", cleaned, re.IGNORECASE):
+            return build(
+                kind=ConditionKind.REQUIRE_UNITS,
+                required_count=int(match.group(1)),
+                required_unit=match.group(2),
             )
+        if "no continues" in lowered:
+            return build(kind=ConditionKind.NO_CONTINUES)
+        if "status ailment" in lowered:
+            return build(kind=ConditionKind.NO_AILMENTS)
+        if "using ninjutsu" in lowered:
+            return build(kind=ConditionKind.NINJUTSU_FINISH)
+        if "combination" in lowered:
+            return build(kind=ConditionKind.COMBO_FINISH)
+        if "defeat all enemies" in lowered:
+            return build(kind=ConditionKind.DEFEAT_ALL)
         if "drop complete" in lowered:
-            return cls(kind=ConditionKind.DROP_COMPLETE, description=cleaned, pearls=pearls)
-        return cls(kind=ConditionKind.OTHER, description=cleaned, pearls=pearls)
+            return build(kind=ConditionKind.DROP_COMPLETE)
+        return build(kind=ConditionKind.OTHER)
 
 
 class EnemySkill(BaseModel):

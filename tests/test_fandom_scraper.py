@@ -56,5 +56,26 @@ def test_parses_cost_cap_condition():
     assert condition.max_cost == 28
 
 
+def test_parses_turn_limit_condition():
+    condition = ClearCondition.parse("Complete within 20 turns", pearls=3)
+
+    assert condition.kind is ConditionKind.TURN_LIMIT
+    assert condition.max_turns == 20
+
+
+def test_parses_affiliation_condition():
+    condition = ClearCondition.parse("Use only Hidden Leaf characters")
+
+    assert condition.kind is ConditionKind.AFFILIATION_ONLY
+    assert condition.affiliation == "Hidden Leaf"
+
+
+def test_parses_required_unit_condition():
+    condition = ClearCondition.parse("Have 3+ Naruto Uzumaki characters on your team")
+
+    assert condition.kind is ConditionKind.REQUIRE_UNITS
+    assert (condition.required_count, condition.required_unit) == (3, "Naruto Uzumaki")
+
+
 def test_unknown_condition_falls_back():
-    assert ClearCondition.parse("Clear within 5 turns").kind is ConditionKind.OTHER
+    assert ClearCondition.parse("Dance the tango").kind is ConditionKind.OTHER

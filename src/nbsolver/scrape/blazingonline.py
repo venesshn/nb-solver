@@ -27,6 +27,11 @@ USER_AGENT = "nbsolver/0.1 (mission solver; personal project)"
 RANGE_RE = re.compile(r"^(short|mid|long|vast)", re.IGNORECASE)
 
 
+def _text(value: Any) -> str:
+    """Published records use null for absent text as often as they omit the key."""
+    return "" if value is None else str(value)
+
+
 class BlazingOnline:
     def __init__(self, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(
@@ -75,7 +80,7 @@ def _range(text: str) -> AttackRange | None:
 
 
 def _rank(value: str | None) -> Rank:
-    name = (value or "").strip().upper()
+    name = _text(value).strip().upper()
     return Rank[name] if name in Rank.__members__ else Rank.C
 
 
@@ -83,46 +88,48 @@ def _conditions(raw: list[dict[str, Any]] | None) -> list[ClearCondition]:
     conditions: list[ClearCondition] = []
     for item in raw or []:
         pearls = sum(
-            reward.get("q", 0) for reward in item.get("r", []) if reward.get("c") == "pearl"
+            reward.get("q", 0) or 0
+            for reward in item.get("r") or []
+            if reward.get("c") == "pearl"
         )
-        conditions.append(ClearCondition.parse(item.get("t", ""), pearls))
+        conditions.append(ClearCondition.parse(_text(item.get("t")), pearls))
     return conditions
 
 
 def _skills(raw: list[dict[str, Any]] | None) -> list[EnemySkill]:
     return [
         EnemySkill(
-            slot=skill.get("slot", ""),
-            name=skill.get("n", ""),
-            description=skill.get("d", ""),
-            range=skill.get("rng", ""),
-            targets=skill.get("tgt", ""),
+            slot=_text(skill.get("slot")),
+            name=_text(skill.get("n")),
+            description=_text(skill.get("d")),
+            range=_text(skill.get("rng")),
+            targets=_text(skill.get("tgt")),
         )
         for skill in raw or []
     ]
 
 
 def _enemy(entry: dict[str, Any], foes: dict[str, Any]) -> EnemyStats:
-    detail = foes.get(str(entry.get("k", "")), {})
+    detail = foes.get(_text(entry.get("k")), {})
     field = detail.get("field") or {}
     raw = detail.get("raw") or {}
-    range_text = detail.get("range", "")
+    range_text = _text(detail.get("range"))
 
     return EnemyStats(
-        key=str(entry.get("k", "")),
-        name=entry.get("n") or detail.get("n", ""),
+        key=_text(entry.get("k")),
+        name=_text(entry.get("n") or detail.get("n")),
         element=_element(entry.get("el") or detail.get("el")) or Element.HEART,
-        hp=entry.get("hp", detail.get("hp", 0)),
-        attack=entry.get("atk", detail.get("atk", 0)),
-        level=entry.get("lv", 1),
+        hp=entry.get("hp") or detail.get("hp") or 0,
+        attack=entry.get("atk") or detail.get("atk") or 0,
+        level=entry.get("lv") or 1,
         range=_range(range_text),
         range_text=range_text,
         is_boss=bool(entry.get("boss") or detail.get("boss")),
-        carries=entry.get("carries", ""),
+        carries=_text(entry.get("carries")),
         skills=_skills(detail.get("sk")),
-        field_skill=field.get("n", ""),
-        ai_summary=list(detail.get("ai") or []),
-        ai_states=list(raw.get("aiStates") or []),
+        field_skill=_text(field.get("n")),
+        ai_summary=[_text(line) for line in detail.get("ai") or []],
+        ai_states=[_text(line) for line in raw.get("aiStates") or []],
     )
 
 
@@ -131,20 +138,22 @@ def _maps(raw: list[dict[str, Any]] | None, foes: dict[str, Any]) -> list[Battle
     for index, node in enumerate(raw or [], start=1):
         sets = [
             EnemySet(
-                weight=group.get("w", 100.0),
-                enemies=[_enemy(entry, foes) for entry in group.get("e", [])],
+                weight=group.get("w") or 100.0,
+                enemies=[_enemy(entry, foes) for entry in group.get("e") or []],
                 waves=[
                     WaveSpawn(
-                        number=wave.get("n", 0),
-                        trigger=wave.get("t", ""),
-                        rows=wave.get("rows", 0),
+                        number=wave.get("n") or 0,
+                        trigger=_text(wave.get("t")),
+                        rows=wave.get("rows") or 0,
                     )
-                    for wave in group.get("waves", [])
+                    for wave in group.get("waves") or []
                 ],
             )
-            for group in node.get("sets", [])
+            for group in node.get("sets") or []
         ]
-        maps.append(BattleMap(number=node.get("no", index), clear=node.get("clear", ""), sets=sets))
+        maps.append(
+            BattleMap(number=node.get("no") or index, clear=_text(node.get("clear")), sets=sets)
+        )
     return maps
 
 
@@ -158,12 +167,12 @@ def _stage(entry: dict[str, Any], foes: dict[str, Any]) -> Stage | None:
     boss = next((e for e in reversed(enemies) if e.is_boss), None)
 
     return Stage(
-        name=server.get("name") or entry.get("name", ""),
+        name=_text(server.get("name") or entry.get("name")),
         rank=_rank(server.get("rank")),
-        stamina=server.get("stamina", 0),
+        stamina=server.get("stamina") or 0,
         stage_id=server.get("id"),
-        clear=server.get("clear", ""),
-        availability=server.get("availability", ""),
+        clear=_text(server.get("clear")),
+        availability=_text(server.get("availability")),
         boss_name=boss.name if boss else "",
         boss_element=boss.element if boss else None,
         enemies=enemies,
@@ -186,9 +195,9 @@ def parse_mission(raw: dict[str, Any]) -> Mission:
         sources.append(f"Naruto Blazing Wiki (Fandom), CC BY-SA 3.0 - {url}")
 
     return Mission(
-        slug=raw.get("id", ""),
-        name=raw.get("title", ""),
-        mode=raw.get("mode", ""),
+        slug=_text(raw.get("id")),
+        name=_text(raw.get("title")),
+        mode=_text(raw.get("mode")),
         stages=stages,
         sources=sources,
     )
