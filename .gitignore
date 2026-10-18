@@ -20,4 +20,4 @@ data/frames/
 extract_log.txt
 lint.txt
 test_log.txt
-git.txt
+*.log.txt
