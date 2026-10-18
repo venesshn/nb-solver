@@ -8,7 +8,9 @@ for source in mission.sources:
     print("  source:", source)
 
 for stage in mission.stages:
-    print(f"\n--- {stage.name} (rank {stage.rank}, {stage.stamina} stamina, id {stage.stage_id})")
+    print(
+        f"\n--- {stage.name} (rank {stage.rank}, {stage.stamina} stamina, id {stage.stage_id})"
+    )
     print(f"    clear: {stage.clear} | random sets: {stage.has_random_sets}")
     for condition in stage.conditions:
         print(
@@ -23,9 +25,13 @@ for stage in mission.stages:
                 print(f"        wave {wave.number}: {wave.trigger} (rows {wave.rows})")
             for enemy in group.enemies:
                 flag = " BOSS" if enemy.is_boss else ""
-                print(f"        {enemy.name:<16} {enemy.element:<8} hp={enemy.hp:<6} atk={enemy.attack:<5}{flag}")
+                print(
+                    f"        {enemy.name:<16} {enemy.element:<8} hp={enemy.hp:<6} atk={enemy.attack:<5}{flag}"
+                )
                 for state in enemy.ai_states:
                     print(f"            ai: {state}")
                 for skill in enemy.skills:
                     if skill.description:
-                        print(f"            sk: {skill.name} -> {skill.description} [{skill.range}]")
+                        print(
+                            f"            sk: {skill.name} -> {skill.description} [{skill.range}]"
+                        )

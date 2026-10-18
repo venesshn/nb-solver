@@ -56,17 +56,24 @@ class ClearCondition(BaseModel):
         lowered = cleaned.lower()
         build = partial(cls, description=cleaned, pearls=pearls)
 
-        if match := re.match(r"(heart|skill|body|bravery|wisdom)\s+elementals?\s+only", lowered):
+        if match := re.match(
+            r"(heart|skill|body|bravery|wisdom)\s+elementals?\s+only", lowered
+        ):
             return build(
-                kind=ConditionKind.ELEMENT_ONLY, element=Element(match.group(1).capitalize())
+                kind=ConditionKind.ELEMENT_ONLY,
+                element=Element(match.group(1).capitalize()),
             )
         if match := re.search(r"cost\s+(\d+)\s+or\s+lower", lowered):
             return build(kind=ConditionKind.COST_CAP, max_cost=int(match.group(1)))
         if match := re.search(r"within\s+(\d+)\s+turns?", lowered):
             return build(kind=ConditionKind.TURN_LIMIT, max_turns=int(match.group(1)))
         if match := re.search(r"use only\s+(.+?)\s+characters", cleaned, re.IGNORECASE):
-            return build(kind=ConditionKind.AFFILIATION_ONLY, affiliation=match.group(1))
-        if match := re.search(r"have\s+(\d+)\+?\s+(.+?)\s+characters", cleaned, re.IGNORECASE):
+            return build(
+                kind=ConditionKind.AFFILIATION_ONLY, affiliation=match.group(1)
+            )
+        if match := re.search(
+            r"have\s+(\d+)\+?\s+(.+?)\s+characters", cleaned, re.IGNORECASE
+        ):
             return build(
                 kind=ConditionKind.REQUIRE_UNITS,
                 required_count=int(match.group(1)),

@@ -23,7 +23,9 @@ def make_unit(unit_id: int = SAKURA) -> Unit:
         max_level=100,
         levels=[
             StatLevel(label="Lv 1", level=1, health=500, attack=400, speed=50),
-            StatLevel(label="Max Lv 100", level=100, health=1554, attack=1662, speed=150),
+            StatLevel(
+                label="Max Lv 100", level=100, health=1554, attack=1662, speed=150
+            ),
         ],
         abilities=[
             Ability(name="a", unlock="Ability unlock 1 of 3"),
@@ -53,8 +55,20 @@ def make_limit_broken_unit() -> Unit:
     unit = make_unit()
     unit.max_level_limit_break = 150
     unit.levels += [
-        StatLevel(label="Limit Break 1 (Lv 105)", level=105, health=1600, attack=1700, speed=152),
-        StatLevel(label="Limit Break 2 (Lv 110)", level=110, health=1700, attack=1800, speed=154),
+        StatLevel(
+            label="Limit Break 1 (Lv 105)",
+            level=105,
+            health=1600,
+            attack=1700,
+            speed=152,
+        ),
+        StatLevel(
+            label="Limit Break 2 (Lv 110)",
+            level=110,
+            health=1700,
+            attack=1800,
+            speed=154,
+        ),
         # The Ultimate row repeats the top level with different numbers.
         StatLevel(label="Ultimate", level=110, health=2000, attack=2100, speed=184),
     ]
@@ -98,7 +112,9 @@ def test_rescan_does_not_duplicate_existing_copies():
     roster = Roster()
     roster.add(NARUTO, level=72, manual=True)
 
-    added, skipped = roster.merge_scan([OwnedUnit(unit_id=NARUTO), OwnedUnit(unit_id=HINATA)])
+    added, skipped = roster.merge_scan(
+        [OwnedUnit(unit_id=NARUTO), OwnedUnit(unit_id=HINATA)]
+    )
 
     assert (added, skipped) == (1, 1)
     assert roster.copies_of(NARUTO)[0].level == 72

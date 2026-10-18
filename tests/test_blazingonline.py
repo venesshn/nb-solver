@@ -26,7 +26,9 @@ RAW = {
                 }
             ],
             "ai": ["First acts after 1 turn"],
-            "raw": {"aiStates": ["state 0 [Init]: skill 300251 (countdown 1) -> state 1"]},
+            "raw": {
+                "aiStates": ["state 0 [Init]: skill 300251 (countdown 1) -> state 1"]
+            },
         },
         "30020211": {"n": "Gozu", "el": "Wisdom", "hp": 6666, "atk": 220},
     },
@@ -43,7 +45,10 @@ RAW = {
                         "stamina": 20,
                         "clear": "Defeat the boss",
                         "conds": [
-                            {"t": "Wisdom elementals only", "r": [{"c": "pearl", "q": 3}]},
+                            {
+                                "t": "Wisdom elementals only",
+                                "r": [{"c": "pearl", "q": 3}],
+                            },
                             {
                                 "t": "Character cost 28 or lower only",
                                 "r": [{"c": "pearl", "q": 5}],
@@ -121,14 +126,22 @@ def mission():
 def test_mission_header():
     parsed = mission()
 
-    assert (parsed.slug, parsed.name, parsed.mode) == ("e3013", "The Mist Demon", "emergency")
+    assert (parsed.slug, parsed.name, parsed.mode) == (
+        "e3013",
+        "The Mist Demon",
+        "emergency",
+    )
     assert any("CC BY-SA" in source for source in parsed.sources)
 
 
 def test_stage_and_conditions():
     stage = mission().stages[0]
 
-    assert (stage.stage_id, stage.stamina, stage.clear) == (301302, 20, "Defeat the boss")
+    assert (stage.stage_id, stage.stamina, stage.clear) == (
+        301302,
+        20,
+        "Defeat the boss",
+    )
     assert [c.kind for c in stage.conditions] == [
         ConditionKind.ELEMENT_ONLY,
         ConditionKind.COST_CAP,

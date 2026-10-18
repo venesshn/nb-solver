@@ -15,9 +15,11 @@ WANTED = [
     ("Hinata Hyuga", "Blooming Talent"),
 ]
 
-index = json.loads((ROOT / "data" / "cache" / "units" / "index.json").read_text("utf-8")) if (
-    ROOT / "data" / "cache" / "units" / "index.json"
-).exists() else None
+index = (
+    json.loads((ROOT / "data" / "cache" / "units" / "index.json").read_text("utf-8"))
+    if (ROOT / "data" / "cache" / "units" / "index.json").exists()
+    else None
+)
 
 units = json.loads((ROOT / "data" / "units.json").read_text(encoding="utf-8"))
 
@@ -26,7 +28,9 @@ with OUT.open("w", encoding="utf-8") as handle:
         matches = [
             u
             for u in units
-            if u["name"] == name and title.lower() in u["title"].lower() and u["rarity"] == 6
+            if u["name"] == name
+            and title.lower() in u["title"].lower()
+            and u["rarity"] == 6
         ]
         handle.write(f"\n===== {name} '{title}' -> {len(matches)} match(es) =====\n")
         for unit in matches:
@@ -43,7 +47,9 @@ with OUT.open("w", encoding="utf-8") as handle:
             raw_path = CACHE / f"{unit['unit_id']}.json"
             if raw_path.exists():
                 raw = json.loads(raw_path.read_text(encoding="utf-8"))
-                handle.write(f"      RAW stats keys: {list((raw.get('stats') or {}).keys())}\n")
+                handle.write(
+                    f"      RAW stats keys: {list((raw.get('stats') or {}).keys())}\n"
+                )
                 handle.write(
                     f"      RAW levels: {json.dumps((raw.get('stats') or {}).get('levels'))}\n"
                 )

@@ -8,7 +8,9 @@ BASE = "https://www.blazingonline.wiki/"
 
 
 def get_text(path):
-    response = httpx.get(BASE + path, headers=HEADERS, timeout=60, follow_redirects=True)
+    response = httpx.get(
+        BASE + path, headers=HEADERS, timeout=60, follow_redirects=True
+    )
     return response.status_code, response.text
 
 
@@ -25,7 +27,9 @@ for js in ("assets/js/units.js", "assets/js/unit.js", "assets/js/character.js"):
     print(f"\n[{status}] {js} ({len(text)} bytes)")
     if status != 200:
         continue
-    for path in sorted(set(re.findall(r"""["'`]((?:data|api)/[^"'`\s]{0,60})["'`]""", text))):
+    for path in sorted(
+        set(re.findall(r"""["'`]((?:data|api)/[^"'`\s]{0,60})["'`]""", text))
+    ):
         print("    path:", path)
 
 status, raw = get_text("data/u/10013.json")

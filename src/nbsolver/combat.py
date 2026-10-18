@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from nbsolver.enums import Element
 
 CRITICAL_MULTIPLIER = 1.5
@@ -55,3 +57,24 @@ def damage(
     if critical:
         dealt *= CRITICAL_MULTIPLIER
     return dealt
+
+
+class DamageColour(StrEnum):
+    """The colour the game prints a number in, so playback can match what players see."""
+
+    ADVANTAGE = "red"
+    NEUTRAL = "grey"
+    DISADVANTAGE = "blue"
+    SLIP = "purple"
+    HEALING = "green"
+
+
+def damage_colour(attacker: Element, defender: Element) -> DamageColour:
+    """Read from the raw matchup, since nullifying a penalty still shows grey."""
+    match element_multiplier(attacker, defender):
+        case x if x == ADVANTAGE:
+            return DamageColour.ADVANTAGE
+        case x if x == DISADVANTAGE:
+            return DamageColour.DISADVANTAGE
+        case _:
+            return DamageColour.NEUTRAL

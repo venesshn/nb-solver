@@ -7,7 +7,9 @@ from nbsolver.models import Unit
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-units = [Unit.model_validate(u) for u in json.loads(UNITS_PATH.read_text(encoding="utf-8"))]
+units = [
+    Unit.model_validate(u) for u in json.loads(UNITS_PATH.read_text(encoding="utf-8"))
+]
 print(f"units: {len(units)}")
 print("rarities:", dict(sorted(Counter(u.rarity for u in units).items())))
 print("elements:", dict(Counter(str(u.element) for u in units)))

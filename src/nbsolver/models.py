@@ -95,7 +95,11 @@ class Unit(BaseModel):
 
     @property
     def min_cost(self) -> int:
-        return self.cost_all_abilities if self.cost_all_abilities is not None else self.cost
+        return (
+            self.cost_all_abilities
+            if self.cost_all_abilities is not None
+            else self.cost
+        )
 
     @property
     def _growth_points(self) -> list[StatLevel]:

@@ -30,7 +30,9 @@ def unpack(path: Path, out_dir: Path) -> list[tuple[str, str, int]]:
         try:
             data = obj.read()
         except Exception as exc:  # noqa: BLE001 - UnityPy raises arbitrary errors on malformed objects
-            print(f"  ! {path.name}: cannot read {obj.type.name}: {exc}", file=sys.stderr)
+            print(
+                f"  ! {path.name}: cannot read {obj.type.name}: {exc}", file=sys.stderr
+            )
             continue
 
         name = getattr(data, "m_Name", "") or f"{obj.type.name}_{obj.path_id}"
@@ -39,7 +41,11 @@ def unpack(path: Path, out_dir: Path) -> list[tuple[str, str, int]]:
             script = getattr(data, "m_Script", None)
             if script is None:
                 continue
-            payload = script.encode("utf-8", "surrogateescape") if isinstance(script, str) else bytes(script)
+            payload = (
+                script.encode("utf-8", "surrogateescape")
+                if isinstance(script, str)
+                else bytes(script)
+            )
             target = out_dir / f"{path.stem}__{name}.bin"
             target.write_bytes(payload)
             written.append((obj.type.name, name, len(payload)))

@@ -11,7 +11,9 @@ for snippet in set(re.findall(r'.{70}"data/units/.{90}', js)):
     print("CTX:", snippet.replace("\n", " "))
 
 for candidate in ("data/units/10013.json", "data/units/10013/index.json"):
-    response = httpx.get(BASE + candidate, headers=HEADERS, timeout=60, follow_redirects=True)
+    response = httpx.get(
+        BASE + candidate, headers=HEADERS, timeout=60, follow_redirects=True
+    )
     print(f"\n[{response.status_code}] {candidate} ({len(response.content)} bytes)")
     if response.status_code == 200:
         print(json.dumps(response.json(), indent=1)[:2000])

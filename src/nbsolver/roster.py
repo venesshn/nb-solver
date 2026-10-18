@@ -70,7 +70,9 @@ class Roster(BaseModel):
     def team_cost(self, team: list[OwnedUnit], catalogue: dict[int, Unit]) -> int:
         return sum(u.cost(catalogue[u.unit_id]) for u in team)
 
-    def fits_cost_limit(self, team: list[OwnedUnit], catalogue: dict[int, Unit]) -> bool:
+    def fits_cost_limit(
+        self, team: list[OwnedUnit], catalogue: dict[int, Unit]
+    ) -> bool:
         return self.team_cost(team, catalogue) <= self.team_cost_limit
 
     def save(self, path: Path) -> None:

@@ -26,7 +26,8 @@ TEAM = [
 OBSERVED_TEAM_HP = 9296
 
 catalogue = {
-    u.unit_id: u for u in (Unit.model_validate(r) for r in json.loads(UNITS_PATH.read_text("utf-8")))
+    u.unit_id: u
+    for u in (Unit.model_validate(r) for r in json.loads(UNITS_PATH.read_text("utf-8")))
 }
 
 roster = Roster(player_id="REDACTED")

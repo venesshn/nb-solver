@@ -14,7 +14,9 @@ print(f"stages:          {len(stages)}")
 print(f"maps:            {sum(len(s.maps) for s in stages)}")
 print(f"enemy instances: {sum(len(s.enemies) for s in stages)}")
 print(f"stages with random enemy sets: {sum(1 for s in stages if s.has_random_sets)}")
-print(f"stages with AI scripts:        {sum(1 for s in stages if any(e.ai_states for e in s.enemies))}")
+print(
+    f"stages with AI scripts:        {sum(1 for s in stages if any(e.ai_states for e in s.enemies))}"
+)
 
 print("\nmodes:", dict(Counter(m.mode for m in catalogue.missions)))
 print("ranks:", dict(Counter(str(s.rank) for s in stages)))

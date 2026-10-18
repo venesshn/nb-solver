@@ -46,7 +46,9 @@ def build(
 
         for index, page in enumerate(targets, start=1):
             try:
-                mission = blazingonline.parse_mission(_cached_raw(api, page, refresh=refresh))
+                mission = blazingonline.parse_mission(
+                    _cached_raw(api, page, refresh=refresh)
+                )
             except Exception as exc:  # noqa: BLE001 - one bad page must not sink the run
                 if on_progress:
                     on_progress(index, len(targets), f"{page}: FAILED ({exc})")
@@ -54,7 +56,11 @@ def build(
 
             missions.append(mission)
             if on_progress:
-                on_progress(index, len(targets), f"{page}: {mission.name} ({len(mission.stages)})")
+                on_progress(
+                    index,
+                    len(targets),
+                    f"{page}: {mission.name} ({len(mission.stages)})",
+                )
 
     return MissionCatalogue(missions=missions)
 
@@ -92,7 +98,9 @@ def build_units(
 
             units.append(unit)
             if on_progress:
-                on_progress(index, len(summaries), f"{unit_id}: {unit.name} ({unit.title})")
+                on_progress(
+                    index, len(summaries), f"{unit_id}: {unit.name} ({unit.title})"
+                )
 
     return units
 
@@ -108,7 +116,9 @@ def main() -> None:
     catalogue.save(CATALOGUE_PATH)
 
     stages = sum(len(m.stages) for m in catalogue.missions)
-    random_stages = sum(1 for m in catalogue.missions for s in m.stages if s.has_random_sets)
+    random_stages = sum(
+        1 for m in catalogue.missions for s in m.stages if s.has_random_sets
+    )
     print(
         f"\n{len(catalogue.missions)} missions, {stages} stages "
         f"({random_stages} with random enemy sets) -> {CATALOGUE_PATH}"
@@ -117,7 +127,8 @@ def main() -> None:
     units = build_units(on_progress=report)
     UNITS_PATH.parent.mkdir(parents=True, exist_ok=True)
     UNITS_PATH.write_text(
-        json.dumps([u.model_dump(mode="json") for u in units], indent=2), encoding="utf-8"
+        json.dumps([u.model_dump(mode="json") for u in units], indent=2),
+        encoding="utf-8",
     )
     print(f"\n{len(units)} units -> {UNITS_PATH}")
 

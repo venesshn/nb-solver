@@ -16,7 +16,9 @@ USER_AGENT = "nbsolver/0.1 (mission solver; personal project)"
 
 STAGE_RE = re.compile(r"^Stage\s+\d+:\s*(.+)$")
 RANK_ICON_RE = re.compile(r"mission difficulty icon\s+(\w+)", re.IGNORECASE)
-ELEMENT_ICON_RE = re.compile(r"^(heart|skill|body|bravery|wisdom)\s+icon$", re.IGNORECASE)
+ELEMENT_ICON_RE = re.compile(
+    r"^(heart|skill|body|bravery|wisdom)\s+icon$", re.IGNORECASE
+)
 REWARD_RE = re.compile(r"x\s*(\d+)")
 
 
@@ -25,7 +27,8 @@ def fetch_page_html(page: str, client: httpx.Client | None = None) -> str:
     client = client or httpx.Client(timeout=30, headers={"User-Agent": USER_AGENT})
     try:
         response = client.get(
-            API, params={"action": "parse", "page": page, "prop": "text", "format": "json"}
+            API,
+            params={"action": "parse", "page": page, "prop": "text", "format": "json"},
         )
         response.raise_for_status()
         payload = response.json()
@@ -111,7 +114,9 @@ def _parse_conditions(table: Tag) -> dict[Rank, list[ClearCondition]]:
 
         reward = cells[2].get_text(" ", strip=True)
         pearls = int(match.group(1)) if (match := REWARD_RE.search(reward)) else 0
-        by_rank.setdefault(current, []).append(ClearCondition.parse(description, pearls))
+        by_rank.setdefault(current, []).append(
+            ClearCondition.parse(description, pearls)
+        )
 
     return by_rank
 
