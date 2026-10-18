@@ -30,8 +30,20 @@ class EffectKind(StrEnum):
     CRITICAL_RATE_BOOST = "Critical rate boost"
     ELEMENT_CHANGE = "Element change"
     NULLIFY_ELEMENT_REDUCTION = "Nullifies element affinity damage reduction"
+    NULLIFY_JUTSU_DAMAGE = "Nullifies ninjutsu damage received"
     HEALTH_RECOVERY = "Health recovery"
     CHAKRA_RECOVERY = "Chakra recovery"
+    DAMAGE_REDUCTION = "Damage reduction"
+    PERFECT_DODGE = "Perfect dodge"
+    LIFESTEAL = "Health recovery from damage dealt"
+    KNOCKBACK = "Knock back"
+    PULL = "Pull"
+    CHAKRA_DRAIN = "Chakra gauge reduction"
+    CHAKRA_COST_REDUCTION = "Chakra cost reduction"
+    IGNORE_SUBSTITUTION = "Ignores substitution"
+    IGNORE_PERFECT_DODGE = "Ignores perfect dodge"
+    IGNORE_DAMAGE_REDUCTION = "Ignores damage reduction"
+    REMOVE_BARRIER = "Removes barrier"
     OTHER = "Other"
 
 
@@ -39,6 +51,8 @@ class EffectMode(StrEnum):
     INFLICT = "Inflict"
     RESIST = "Resist"
     GRANT = "Grant"
+    # An attack that bypasses a defence rather than applying anything itself.
+    PIERCE = "Pierce"
 
 
 # Longest phrases first so "health recovery sealing" wins over "health recovery".
@@ -78,11 +92,49 @@ DURATION_RE = re.compile(r"for\s+(\d+)\s*turn", re.IGNORECASE)
 TIER_RE = re.compile(r"tier\s*(\d+)", re.IGNORECASE)
 PERCENT_BY_RE = re.compile(r"by\s+(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 CHAKRA_AMOUNT_RE = re.compile(r"restoring\s+(\d+)\s*chakra", re.IGNORECASE)
+BY_AMOUNT_RE = re.compile(r"by\s+(\d+)(?!\s*%)")
 PLUS_PERCENT_RE = re.compile(r"\+\s*(\d+(?:\.\d+)?)\s*%")
 ELEMENT_CHANGE_RE = re.compile(
     r"changes the element to\s+(Heart|Skill|Body|Bravery|Wisdom)", re.IGNORECASE
 )
 MULTIPLIER_RE = re.compile(r"([\d.]+)\s*x\s*attack", re.IGNORECASE)
+
+# Matched in order against a clause, each hit blanking its own span so that a
+# broad phrase cannot re-fire inside a specific one it is nested in.
+FLAG_PHRASES: list[tuple[str, EffectKind, EffectMode]] = [
+    ("knock back and draw", EffectKind.PULL, EffectMode.RESIST),
+    ("nullifies knock back", EffectKind.KNOCKBACK, EffectMode.RESIST),
+    (
+        "damage reduction effects (reduce damage)",
+        EffectKind.IGNORE_DAMAGE_REDUCTION,
+        EffectMode.PIERCE,
+    ),
+    ("ignores damage reduction", EffectKind.IGNORE_DAMAGE_REDUCTION, EffectMode.PIERCE),
+    ("ignore damage reduction", EffectKind.IGNORE_DAMAGE_REDUCTION, EffectMode.PIERCE),
+    ("ignores perfect dodge", EffectKind.IGNORE_PERFECT_DODGE, EffectMode.PIERCE),
+    ("ignore perfect dodge", EffectKind.IGNORE_PERFECT_DODGE, EffectMode.PIERCE),
+    ("ignores substitution", EffectKind.IGNORE_SUBSTITUTION, EffectMode.PIERCE),
+    ("ignore substitution", EffectKind.IGNORE_SUBSTITUTION, EffectMode.PIERCE),
+    ("removes barrier", EffectKind.REMOVE_BARRIER, EffectMode.PIERCE),
+    ("remove barrier", EffectKind.REMOVE_BARRIER, EffectMode.PIERCE),
+    (
+        "nullifies damage you receive from ninjutsu",
+        EffectKind.NULLIFY_JUTSU_DAMAGE,
+        EffectMode.GRANT,
+    ),
+    ("knocks them back", EffectKind.KNOCKBACK, EffectMode.INFLICT),
+    ("draws them closer", EffectKind.PULL, EffectMode.INFLICT),
+    ("recovers health in proportion to damage", EffectKind.LIFESTEAL, EffectMode.GRANT),
+    ("restores health by", EffectKind.LIFESTEAL, EffectMode.GRANT),
+    ("reduces damage by", EffectKind.DAMAGE_REDUCTION, EffectMode.GRANT),
+    ("reduce damage", EffectKind.DAMAGE_REDUCTION, EffectMode.GRANT),
+    ("perfect dodge", EffectKind.PERFECT_DODGE, EffectMode.GRANT),
+    ("reduces the chakra gauge", EffectKind.CHAKRA_DRAIN, EffectMode.INFLICT),
+    ("chakra consumed", EffectKind.CHAKRA_COST_REDUCTION, EffectMode.GRANT),
+]
+
+# How far past a phrase to look for the number that qualifies it.
+FLAG_WINDOW = 60
 
 # Things the wearer gains; "receiving" in these means a trigger, not a resistance.
 GRANT_KINDS = {
@@ -163,6 +215,43 @@ def _chance_effect(clause: str, caster: bool) -> Effect | None:
         targets_caster=caster,
         source=clause.strip(),
     )
+
+
+def _flag_effects(clause: str, caster: bool) -> list[Effect]:
+    remaining = clause.lower()
+    found: list[Effect] = []
+
+    for phrase, kind, mode in FLAG_PHRASES:
+        start = remaining.find(phrase)
+        if start < 0:
+            continue
+        remaining = (
+            remaining[:start] + " " * len(phrase) + remaining[start + len(phrase) :]
+        )
+
+        window = clause[start : start + len(phrase) + FLAG_WINDOW]
+        percent = PERCENT_BY_RE.search(window)
+        amount = BY_AMOUNT_RE.search(window)
+        duration = DURATION_RE.search(window)
+
+        magnitude = None
+        if percent:
+            magnitude = float(percent.group(1))
+        elif amount and kind is EffectKind.CHAKRA_DRAIN:
+            magnitude = float(amount.group(1))
+
+        found.append(
+            Effect(
+                kind=kind,
+                mode=mode,
+                duration=int(duration.group(1)) if duration else None,
+                magnitude=magnitude,
+                targets_caster=caster,
+                source=clause.strip(),
+            )
+        )
+
+    return found
 
 
 def parse_effects(description: str) -> list[Effect]:
@@ -260,6 +349,8 @@ def parse_effects(description: str) -> list[Effect]:
                     source=clause.strip(),
                 )
             )
+
+        effects.extend(_flag_effects(clause, caster))
 
     return effects
 

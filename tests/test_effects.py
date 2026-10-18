@@ -113,3 +113,66 @@ def test_chakra_restoration_is_a_grant_not_a_resistance():
     assert effects[0].mode is EffectMode.GRANT
     assert effects[0].magnitude == 2
     assert effects[0].chance == 20.0
+
+
+def test_knockback_is_captured_because_it_moves_the_target():
+    effects = parse_effects(
+        "8 Trigrams 64 Palms 5.5x attack to 1 Skill elemental enemy(s) in range"
+        " and knocks them back."
+    )
+
+    assert [e.kind for e in effects] == [EffectKind.KNOCKBACK]
+    assert effects[0].mode is EffectMode.INFLICT
+
+
+def test_pierces_are_not_mistaken_for_the_defence_they_bypass():
+    effects = parse_effects(
+        "C3 ignores damage reduction; ignores Perfect Dodge; ignores Substitution;"
+        " 4x attack, 100% chance of slip damage (tier 4)"
+    )
+    pierced = {e.kind for e in effects if e.mode is EffectMode.PIERCE}
+
+    assert pierced == {
+        EffectKind.IGNORE_DAMAGE_REDUCTION,
+        EffectKind.IGNORE_PERFECT_DODGE,
+        EffectKind.IGNORE_SUBSTITUTION,
+    }
+    assert EffectKind.PERFECT_DODGE not in {e.kind for e in effects}
+    assert EffectKind.DAMAGE_REDUCTION not in {e.kind for e in effects}
+
+
+def test_parenthesised_reduce_damage_does_not_become_its_own_buff():
+    effects = parse_effects(
+        "8 Trigrams Air Palm Ignores Substitution and damage reduction effects"
+        " (Reduce Damage) for 1 enemy(s) in range with 4.1x attack toward them."
+    )
+    kinds = {e.kind for e in effects}
+
+    assert kinds == {EffectKind.IGNORE_SUBSTITUTION, EffectKind.IGNORE_DAMAGE_REDUCTION}
+
+
+def test_barrier_removal_and_pull_travel_together():
+    effects = parse_effects(
+        "Absolute: Fang Over Fang Boosts your own attack by 25% for 7 turn(s)."
+        " Removes Barrier of all enemies in range, 5.4x attack and draws them closer."
+    )
+    kinds = {e.kind for e in effects}
+
+    assert EffectKind.REMOVE_BARRIER in kinds
+    assert EffectKind.PULL in kinds
+
+
+def test_chakra_drain_keeps_its_gauge_count():
+    effects = parse_effects("Arhat Fist 2x attack; reduces the chakra gauge by 2")
+
+    drain = next(e for e in effects if e.kind is EffectKind.CHAKRA_DRAIN)
+    assert drain.mode is EffectMode.INFLICT
+    assert drain.magnitude == 2
+
+
+def test_damage_reduction_keeps_its_percentage():
+    effects = parse_effects("Reduce Damage Reduces damage by 10%-15%.")
+
+    assert effects[0].kind is EffectKind.DAMAGE_REDUCTION
+    assert effects[0].mode is EffectMode.GRANT
+    assert effects[0].magnitude == 10.0
