@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import re
 from enum import StrEnum
-from functools import partial
+from functools import cached_property, partial
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from nbsolver.effects import Effect, EffectMode, EffectSet
 from nbsolver.models import AttackRange, Element
 
 
@@ -93,6 +94,10 @@ class EnemySkill(BaseModel):
     range: str = ""
     targets: str = ""
 
+    @cached_property
+    def effects(self) -> EffectSet:
+        return EffectSet.parse(self.description)
+
 
 class EnemyStats(BaseModel):
     """An enemy as it appears in one specific map."""
@@ -112,6 +117,13 @@ class EnemyStats(BaseModel):
     # Human-readable AI summary, plus the underlying state machine when published.
     ai_summary: list[str] = Field(default_factory=list)
     ai_states: list[str] = Field(default_factory=list)
+
+    @cached_property
+    def threats(self) -> list[Effect]:
+        """Everything this enemy can do to the player, skills and field skill alike."""
+        found = [e for skill in self.skills for e in skill.effects.effects]
+        found += EffectSet.parse(self.field_skill).effects
+        return [e for e in found if e.mode in (EffectMode.INFLICT, EffectMode.PIERCE)]
 
 
 class WaveSpawn(BaseModel):

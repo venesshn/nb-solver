@@ -7,7 +7,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from nbsolver.models import Element
+from nbsolver.enums import Element
 
 
 class EffectKind(StrEnum):

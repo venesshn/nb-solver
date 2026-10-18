@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import re
-from enum import StrEnum
+from functools import cached_property
 from itertools import pairwise
 
 from pydantic import BaseModel, Field, field_validator
+
+from nbsolver.effects import EffectSet
+from nbsolver.enums import AttackRange, Element, JutsuShape
 
 MAX_LEVEL = 100
 # Ten limit breaks of five levels each sit on top of the base cap.
@@ -14,35 +16,30 @@ MAX_LIMIT_BREAK_LEVEL = 150
 MAX_LUCK = 99
 MAX_DUPES = 5
 
-MULTIPLIER_RE = re.compile(r"([\d.]+)\s*x\s*attack", re.IGNORECASE)
-
-
-class Element(StrEnum):
-    HEART = "Heart"
-    SKILL = "Skill"
-    BODY = "Body"
-    BRAVERY = "Bravery"
-    WISDOM = "Wisdom"
-
-
-class AttackRange(StrEnum):
-    SHORT = "Short"
-    MID = "Mid"
-    LONG = "Long"
-    VAST = "Vast"
-
-
-class JutsuShape(StrEnum):
-    CIRCLE = "Circle"
-    CONE = "Cone"
-    LINE = "Line"
-    RECTANGLE = "Rectangle"
-    SELF = "Self"
+__all__ = [
+    "MAX_DUPES",
+    "MAX_LEVEL",
+    "MAX_LIMIT_BREAK_LEVEL",
+    "MAX_LUCK",
+    "Ability",
+    "AttackRange",
+    "Element",
+    "Jutsu",
+    "JutsuShape",
+    "OwnedUnit",
+    "Skill",
+    "StatLevel",
+    "Unit",
+]
 
 
 class Skill(BaseModel):
     name: str = ""
     description: str = ""
+
+    @cached_property
+    def effects(self) -> EffectSet:
+        return EffectSet.parse(self.description)
 
 
 class Ability(Skill):
@@ -56,8 +53,7 @@ class Jutsu(Skill):
 
     @property
     def multiplier(self) -> float | None:
-        match = MULTIPLIER_RE.search(self.description)
-        return float(match.group(1)) if match else None
+        return self.effects.multiplier
 
 
 class StatLevel(BaseModel):
