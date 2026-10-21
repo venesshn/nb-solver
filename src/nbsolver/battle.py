@@ -43,6 +43,10 @@ class BattleRules(BaseModel):
     knockback_distance: float = 1.0
     # How far an enemy closes in before it acts; 0 keeps enemies where they spawn.
     enemy_step: float = 0.0
+    # A script-less enemy uses its striking skill on every Nth attack (0: never).
+    plain_skill_every: int = 2
+    # Extra distance beyond its own range at which an ally still joins a combination.
+    combo_reach_bonus: float = 0.0
 
 
 UNVERIFIED_RULES = ("knockback_distance",)
@@ -828,7 +832,10 @@ def _combination(
     for ally in state.team.fielded():
         if ally is actor or not ally.can_act or not ally.reach or target.defeated:
             continue
-        if math.dist(ally.position, target.position) > ally.reach:
+        if (
+            math.dist(ally.position, target.position)
+            > ally.reach + state.rules.combo_reach_bonus
+        ):
             continue
         share = COMBINATION_VALUE.get(ally.attack_range, 0.0)
         if share <= 0:
@@ -1023,7 +1030,8 @@ def _plain_turn(state: BattleState, enemy: Fighter, rng: random.Random) -> list[
     skill = next((t for t in enemy.techniques if t.strikes), None)
     attacks = enemy.skill_uses.get(-1, 0)
     enemy.skill_uses[-1] = attacks + 1
-    if skill is not None and attacks % 2 == 1:
+    every = state.rules.plain_skill_every
+    if skill is not None and every and attacks % every == every - 1:
         return resolve_attack(
             state,
             enemy,

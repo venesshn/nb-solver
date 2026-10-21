@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **193 passing** |
+| Tests | **pytest** — **194 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             15 files, 193 tests
+tests/             15 files, 194 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -714,10 +714,24 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
 - The HUD counter under "MAP 1/3" with a scroll icon counts **drops collected,
   not turns** (seen by eye; `hud_timeline.py` used to call it TURN_BOX). Enemy
   countdowns drop **per unit action** (user-confirmed again).
-- Results now (3 pairs, 50% restore): e3003 Heart 100%, **Body-only ~32%**
-  (still clearable, as the user says); NR #1 reaches map 15, NR #10 reaches
-  map 20 of 20; later boosted roads fail early without featured units.
-- **193 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- Results now (3 pairs, 50% restore): e3003 Heart 100%; **Body-only 100%
+  without a helper** — the user clears it "almost every time" and usually has
+  no helper. The earlier 32% came from the auto-helper: it picked by raw power
+  (Might Guy 'Deep Crimson Youth': 708 HP, ninjutsu costs 15% of team health).
+  Auto-helper is now chosen by PLAY: no helper plus the top 4 by power, 6 quick
+  runs each. NR: user has never finished one; the solver agrees (NR #1 stops
+  at map 15, NR #10 at map 20).
+- Calibration sweep (unverified knobs, Body-only/Heart, no helper): every knob
+  left both at 100% EXCEPT enemies not closing in (ENEMY_STEP 0 -> Body 51%);
+  the 1.5 estimate is kept. Knobs live in simulate.py (PLAIN_INTERVAL,
+  PLAIN_SKILL_EVERY, ENEMY_STEP, COMBO_REACH_BONUS) and passives.RANGE_POINT.
+- Site: helper defaults to none and remembers the pick (user's friend pool is
+  limited). Weekly `.github/workflows/refresh-data.yml` rebuilds the catalogue,
+  refuses losses (`scripts/check_catalogue.py`), tests, commits, then
+  dispatches pages.yml (bot pushes don't trigger workflows).
+- Abilities: user says "some, on main units" but which is unknown; the box
+  keeps 0 and the user sets them per unit in the site's Abilities column.
+- **194 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 

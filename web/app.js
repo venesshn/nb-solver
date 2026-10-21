@@ -280,7 +280,11 @@ $("mode-filter").addEventListener("change", renderMissions);
 $("mission").addEventListener("change", renderStages);
 $("stage").addEventListener("change", renderObjectives);
 document.querySelectorAll('input[name="goal"]').forEach((r) => r.addEventListener("change", renderObjectives));
-$("helper-mode").addEventListener("change", () => ($("helper-search").hidden = $("helper-mode").value !== "pick"));
+$("helper-mode").addEventListener("change", () => {
+  $("helper-search").hidden = $("helper-mode").value !== "pick";
+  localStorage.setItem(`${STORE}helper-mode`, $("helper-mode").value);
+});
+$("helper-search").addEventListener("change", () => localStorage.setItem(`${STORE}helper`, $("helper-search").value));
 
 // ---------- solving ----------
 
@@ -430,6 +434,9 @@ window.addEventListener("resize", () => state.playback?.draw(1));
 
 async function start() {
   $("profile").value = state.profile;
+  $("helper-mode").value = localStorage.getItem(`${STORE}helper-mode`) || "none";
+  $("helper-search").value = localStorage.getItem(`${STORE}helper`) || "";
+  $("helper-search").hidden = $("helper-mode").value !== "pick";
   const [units, missions] = await Promise.all([
     fetch("data/units.json").then((r) => r.json()),
     fetch("data/missions/index.json").then((r) => r.json()),

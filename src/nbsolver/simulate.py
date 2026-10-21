@@ -57,6 +57,21 @@ PERIMETER_BARRIER = 2.5
 # Completing a map gives back half the health lost so far: measured on both map
 # changes of the player's recorded e3003 clear (+378 of 756, +635 of 1270).
 MAP_RESTORE = 0.5
+# Script-less enemies use their striking skill on every Nth attack (0: never).
+PLAIN_SKILL_EVERY = 2
+# How much further than its own range an ally can be and still join a combination.
+COMBO_REACH_BONUS = 0.0
+
+
+def battle_rules() -> BattleRules:
+    """The unpublished rules as currently estimated, read at call time."""
+    return BattleRules(
+        enemy_step=ENEMY_STEP,
+        plain_skill_every=PLAIN_SKILL_EVERY,
+        combo_reach_bonus=COMBO_REACH_BONUS,
+    )
+
+
 # Long enough for any real clear; anything slower is treated as a loss.
 MAX_ACTIONS = 400
 
@@ -765,7 +780,7 @@ def make_squad(
     front: list[Member], back: list[Member | None], label: str = ""
 ) -> Squad:
     team = build_team(front, back)
-    state = BattleState(team=team, rules=BattleRules(enemy_step=ENEMY_STEP))
+    state = BattleState(team=team, rules=battle_rules())
     members = {m.key: m for m in [*front, *(b for b in back if b)]}
     return Squad(front=front, back=back, state=state, members=members, label=label)
 

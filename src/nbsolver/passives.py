@@ -83,8 +83,23 @@ class Passive:
 def _clauses(text: str) -> list[str]:
     # Asides such as "(Not F. Skills)" carry no numbers and break sentence splitting.
     plain = re.sub(r"\([^)]*\)", "", text or "")
+    plain = _resolve_ranges(plain)
     parts = re.split(r"(?<=[.;])\s+", plain)
     return [p.strip(" .;") for p in parts if p.strip(" .;")]
+
+
+# Where in a field skill's "100-300" range to read: 0 is its weakest end (the
+# edge of the circle), 1 its strongest (standing right on the unit).
+RANGE_POINT = 0.0
+
+
+def _resolve_ranges(text: str) -> str:
+    def pick(found: re.Match) -> str:
+        low, high = float(found.group(1)), float(found.group(3))
+        value = low + (high - low) * RANGE_POINT
+        return f"{value:g}{found.group(2) or found.group(4)}"
+
+    return re.sub(r"(\d+(?:\.\d+)?)(%?)\s*-\s*(\d+(?:\.\d+)?)(%?)", pick, text)
 
 
 def _elements(text: str) -> list[str]:

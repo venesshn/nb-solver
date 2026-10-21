@@ -224,13 +224,48 @@ def pick_helper(
     condition: ClearCondition | None,
     boosts: Boosts | None = None,
 ) -> Choice | None:
+    found = helper_candidates(catalogue, stage, condition, boosts, 1)
+    return found[0] if found else None
+
+
+def helper_candidates(
+    catalogue: dict[int, Unit],
+    stage: Stage,
+    condition: ClearCondition | None,
+    boosts: Boosts | None = None,
+    count: int = 4,
+) -> list[Choice]:
+    """The hardest hitters a friend might lend; raw power alone is a poor judge,
+    so the solver plays each before choosing."""
     elements = _enemy_elements(stage)
     pool = [
         _boosted(Choice(unit=u, level=u.max_level, cost=0, helper=True), boosts or {})
         for u in catalogue.values()
         if u.in_revival and u.rarity >= 6 and u.levels and _allowed(u, condition)
     ]
-    return max(pool, key=lambda c: power(c, elements), default=None)
+    return sorted(pool, key=lambda c: -power(c, elements))[:count]
+
+
+def _trial_helper(
+    choices: list[Choice],
+    candidates: list[Choice | None],
+    stage: Stage,
+    limit: int,
+    condition: ClearCondition | None,
+    seed: int,
+) -> Choice | None:
+    """Play a few quick runs with each candidate, going without included."""
+    best: tuple[float, float, Choice | None] | None = None
+    for candidate in candidates:
+        plans = shortlist(choices, candidate, stage, limit, condition)
+        if not plans:
+            continue
+        plan = plans[0]
+        _play(plan, stage, 6, seed + 11, condition)
+        score = (plan.rate, -_mean_turns(plan))
+        if best is None or score > best[:2]:
+            best = (*score, candidate)
+    return best[2] if best else None
 
 
 def _satisfied(run: Run, plan: Plan, condition: ClearCondition | None) -> bool:
@@ -463,7 +498,14 @@ def solve(
         # Ninja Road teams are the player's own six; no friend comes along.
         helper = None
     if helper == "auto":
-        helper_choice = pick_helper(catalogue, stage, condition, table)
+        helper_choice = _trial_helper(
+            choices,
+            [None, *helper_candidates(catalogue, stage, condition, table)],
+            stage,
+            roster.team_cost_limit,
+            condition,
+            seed,
+        )
     elif isinstance(helper, int) and helper in catalogue:
         unit = catalogue[helper]
         if _allowed(unit, condition):
