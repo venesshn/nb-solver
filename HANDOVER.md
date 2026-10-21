@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **194 passing** |
+| Tests | **pytest** — **200 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             15 files, 194 tests
+tests/             16 files, 200 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -729,9 +729,13 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   limited). Weekly `.github/workflows/refresh-data.yml` rebuilds the catalogue,
   refuses losses (`scripts/check_catalogue.py`), tests, commits, then
   dispatches pages.yml (bot pushes don't trigger workflows).
+  Its FIRST run lost e7034's layouts (one hideoutgacha connection dropped;
+  the check only counted missions). Fixed: fetches retry transient errors
+  (`scrape/http.py`, never a 404), the check compares every stage, map,
+  layout, enemy list, source and boost, data restored; re-run was clean.
 - Abilities: user says "some, on main units" but which is unknown; the box
   keeps 0 and the user sets them per unit in the site's Abilities column.
-- **194 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- **200 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 
