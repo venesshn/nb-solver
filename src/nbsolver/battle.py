@@ -32,16 +32,14 @@ class BattleRules(BaseModel):
 
     # Confirmed by the player: one gauge each time a unit's turn comes round.
     chakra_per_turn: float = 1.0
-    # Confirmed by the player: a combo past this many hits tops everyone up again.
+    # Confirmed by the player: a combo past this many hits gives one extra bar,
+    # on top of the normal refill.
     combo_hits_for_bonus: int = 15
     combo_chakra_bonus: float = 1.0
     knockback_distance: float = 1.0
 
 
-UNVERIFIED_RULES = (
-    "combo_chakra_bonus",
-    "knockback_distance",
-)
+UNVERIFIED_RULES = ("knockback_distance",)
 
 # An attack bypasses a defence when the attacker carries the matching pierce.
 PIERCED_BY = {
