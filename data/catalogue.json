@@ -391709,7 +391709,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -391731,7 +391731,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
               "skills": [],
@@ -391753,7 +391753,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -391775,7 +391775,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -391797,7 +391797,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
               "skills": [],
@@ -391819,7 +391819,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -391841,7 +391841,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -391863,7 +391863,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 5,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -391885,7 +391885,7 @@
               "is_boss": true,
               "role": "Boss",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -391949,7 +391949,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -391980,7 +391980,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -392011,7 +392011,7 @@
               "is_boss": true,
               "role": "Boss",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
               "skills": [
@@ -392075,7 +392075,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -392106,7 +392106,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -392130,53 +392130,7 @@
             {
               "number": 1,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 1,
-                    "row": 1
-                  },
-                  {
-                    "column": 3,
-                    "row": 3
-                  },
-                  {
-                    "column": 1,
-                    "row": 6
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 5
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -392193,7 +392147,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -392215,7 +392169,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
                       "skills": [],
@@ -392237,7 +392191,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -392256,71 +392210,7 @@
             {
               "number": 2,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 0,
-                    "row": 1
-                  },
-                  {
-                    "column": 0,
-                    "row": 6
-                  },
-                  {
-                    "column": 8,
-                    "row": 6
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 2,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 4
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 4,
-                    "tiles": [
-                      {
-                        "column": 2,
-                        "row": 5
-                      }
-                    ]
-                  },
-                  {
-                    "group": 5,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 3
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -392337,7 +392227,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -392359,7 +392249,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
                       "skills": [],
@@ -392381,7 +392271,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -392403,7 +392293,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -392425,7 +392315,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 5,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -392444,53 +392334,7 @@
             {
               "number": 3,
               "clear": "Defeat the boss",
-              "grid": {
-                "columns": 9,
-                "rows": 6,
-                "player_starts": [
-                  {
-                    "column": 1,
-                    "row": 1
-                  },
-                  {
-                    "column": 2,
-                    "row": 3
-                  },
-                  {
-                    "column": 1,
-                    "row": 5
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 4
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 90.0,
@@ -392507,7 +392351,7 @@
                       "is_boss": true,
                       "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -392571,7 +392415,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -392602,7 +392446,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -392640,7 +392484,7 @@
                       "is_boss": true,
                       "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
                       "skills": [
@@ -392704,7 +392548,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -392735,7 +392579,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -392819,7 +392663,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -392841,7 +392685,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
               "skills": [],
@@ -392863,7 +392707,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -392885,7 +392729,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -392907,7 +392751,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -392929,7 +392773,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
               "skills": [],
@@ -392951,7 +392795,7 @@
               "is_boss": true,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -392977,7 +392821,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -392999,7 +392843,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 5,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -393019,9 +392863,9 @@
               "range": "Long",
               "range_text": "Long large (width 273)",
               "is_boss": true,
-              "role": "Mid-boss",
+              "role": "Boss",
               "defense": 0,
-              "spawn_group": 6,
+              "spawn_group": null,
               "count": 1,
               "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
               "skills": [],
@@ -393047,7 +392891,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 7,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -393069,7 +392913,7 @@
               "is_boss": true,
               "role": "Boss",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -393132,7 +392976,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -393163,7 +393007,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -393194,7 +393038,7 @@
               "is_boss": true,
               "role": "Boss",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
               "skills": [
@@ -393257,7 +393101,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -393288,7 +393132,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -393312,62 +393156,7 @@
             {
               "number": 1,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 2,
-                    "row": 3
-                  },
-                  {
-                    "column": 7,
-                    "row": 4
-                  },
-                  {
-                    "column": 2,
-                    "row": 5
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 4
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 6
-                      }
-                    ]
-                  },
-                  {
-                    "group": 4,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 2
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -393384,7 +393173,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -393406,7 +393195,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
                       "skills": [],
@@ -393428,7 +393217,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393450,7 +393239,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393469,89 +393258,7 @@
             {
               "number": 2,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 0,
-                    "row": 1
-                  },
-                  {
-                    "column": 4,
-                    "row": 1
-                  },
-                  {
-                    "column": 8,
-                    "row": 1
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 2,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 2,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 0,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 4,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 5
-                      }
-                    ]
-                  },
-                  {
-                    "group": 5,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 6,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 7,
-                    "tiles": [
-                      {
-                        "column": 8,
-                        "row": 3
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -393568,7 +393275,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -393590,7 +393297,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
                       "skills": [],
@@ -393612,7 +393319,7 @@
                       "is_boss": true,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393638,7 +393345,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393660,7 +393367,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 5,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393680,9 +393387,9 @@
                       "range": "Long",
                       "range_text": "Long large (width 273)",
                       "is_boss": true,
-                      "role": "Mid-boss",
+                      "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 6,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
                       "skills": [],
@@ -393708,7 +393415,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 7,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -393727,53 +393434,7 @@
             {
               "number": 3,
               "clear": "Defeat the boss",
-              "grid": {
-                "columns": 9,
-                "rows": 6,
-                "player_starts": [
-                  {
-                    "column": 1,
-                    "row": 1
-                  },
-                  {
-                    "column": 2,
-                    "row": 3
-                  },
-                  {
-                    "column": 1,
-                    "row": 5
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 4
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 80.0,
@@ -393790,7 +393451,7 @@
                       "is_boss": true,
                       "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -393853,7 +393514,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -393884,7 +393545,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -393922,7 +393583,7 @@
                       "is_boss": true,
                       "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
                       "skills": [
@@ -393985,7 +393646,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -394016,7 +393677,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -394100,7 +393761,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -394122,7 +393783,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
               "skills": [],
@@ -394144,7 +393805,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394166,7 +393827,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394188,7 +393849,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 5,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394210,7 +393871,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 6,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394232,7 +393893,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394254,7 +393915,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394276,7 +393937,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394298,7 +393959,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394320,7 +393981,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 5,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394342,7 +394003,7 @@
               "is_boss": true,
               "role": "",
               "defense": 0,
-              "spawn_group": 7,
+              "spawn_group": null,
               "count": 1,
               "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
               "skills": [],
@@ -394368,7 +394029,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -394390,7 +394051,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394412,7 +394073,7 @@
               "is_boss": true,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394438,7 +394099,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 4,
+              "spawn_group": null,
               "count": 1,
               "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
               "skills": [],
@@ -394460,7 +394121,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 5,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394482,7 +394143,7 @@
               "is_boss": true,
               "role": "",
               "defense": 0,
-              "spawn_group": 6,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394508,7 +394169,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 7,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394530,7 +394191,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 8,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394552,7 +394213,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 9,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [],
@@ -394572,9 +394233,9 @@
               "range": "Long",
               "range_text": "Long large (width 273)",
               "is_boss": true,
-              "role": "Mid-boss",
+              "role": "Boss",
               "defense": 0,
-              "spawn_group": 10,
+              "spawn_group": null,
               "count": 1,
               "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
               "skills": [],
@@ -394600,7 +394261,7 @@
               "is_boss": true,
               "role": "Boss",
               "defense": 0,
-              "spawn_group": 1,
+              "spawn_group": null,
               "count": 1,
               "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
               "skills": [
@@ -394662,7 +394323,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 2,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -394693,7 +394354,7 @@
               "is_boss": false,
               "role": "",
               "defense": 0,
-              "spawn_group": 3,
+              "spawn_group": null,
               "count": 1,
               "carries": "",
               "skills": [
@@ -394717,80 +394378,7 @@
             {
               "number": 1,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 0,
-                    "row": 1
-                  },
-                  {
-                    "column": 2,
-                    "row": 3
-                  },
-                  {
-                    "column": 0,
-                    "row": 5
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 5
-                      }
-                    ]
-                  },
-                  {
-                    "group": 4,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 5,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 6,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 5
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 90.0,
@@ -394807,7 +394395,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -394829,7 +394417,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Attack Boost \"Large Sphere of Strength\" (★3)",
                       "skills": [],
@@ -394851,7 +394439,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394873,7 +394461,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394895,7 +394483,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 5,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394917,7 +394505,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 6,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394946,7 +394534,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394968,7 +394556,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -394990,7 +394578,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395012,7 +394600,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395034,7 +394622,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 5,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395056,7 +394644,7 @@
                       "is_boss": true,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 7,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
                       "skills": [],
@@ -395079,116 +394667,7 @@
             {
               "number": 2,
               "clear": "Defeat every enemy",
-              "grid": {
-                "columns": 9,
-                "rows": 7,
-                "player_starts": [
-                  {
-                    "column": 1,
-                    "row": 1
-                  },
-                  {
-                    "column": 2,
-                    "row": 3
-                  },
-                  {
-                    "column": 1,
-                    "row": 5
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 0
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 4
-                      }
-                    ]
-                  },
-                  {
-                    "group": 4,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 6
-                      }
-                    ]
-                  },
-                  {
-                    "group": 5,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 1
-                      }
-                    ]
-                  },
-                  {
-                    "group": 6,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 3
-                      }
-                    ]
-                  },
-                  {
-                    "group": 7,
-                    "tiles": [
-                      {
-                        "column": 5,
-                        "row": 5
-                      }
-                    ]
-                  },
-                  {
-                    "group": 8,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 9,
-                    "tiles": [
-                      {
-                        "column": 6,
-                        "row": 4
-                      }
-                    ]
-                  },
-                  {
-                    "group": 10,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 3
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -395205,7 +394684,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -395227,7 +394706,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395249,7 +394728,7 @@
                       "is_boss": true,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395275,7 +394754,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 4,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Health Boost \"Large Sphere of Endurance\" (★3)",
                       "skills": [],
@@ -395297,7 +394776,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 5,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395319,7 +394798,7 @@
                       "is_boss": true,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 6,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395345,7 +394824,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 7,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395367,7 +394846,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 8,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395389,7 +394868,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 9,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [],
@@ -395409,9 +394888,9 @@
                       "range": "Long",
                       "range_text": "Long large (width 273)",
                       "is_boss": true,
-                      "role": "Mid-boss",
+                      "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 10,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Limit Break Crystal \"Falling Into Place\" (★5)",
                       "skills": [],
@@ -395434,53 +394913,7 @@
             {
               "number": 3,
               "clear": "Defeat the boss",
-              "grid": {
-                "columns": 9,
-                "rows": 6,
-                "player_starts": [
-                  {
-                    "column": 4,
-                    "row": 0
-                  },
-                  {
-                    "column": 3,
-                    "row": 4
-                  },
-                  {
-                    "column": 5,
-                    "row": 4
-                  }
-                ],
-                "spawns": [
-                  {
-                    "group": 1,
-                    "tiles": [
-                      {
-                        "column": 4,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 2,
-                    "tiles": [
-                      {
-                        "column": 1,
-                        "row": 2
-                      }
-                    ]
-                  },
-                  {
-                    "group": 3,
-                    "tiles": [
-                      {
-                        "column": 7,
-                        "row": 2
-                      }
-                    ]
-                  }
-                ]
-              },
+              "grid": null,
               "sets": [
                 {
                   "weight": 100.0,
@@ -395497,7 +394930,7 @@
                       "is_boss": true,
                       "role": "Boss",
                       "defense": 0,
-                      "spawn_group": 1,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "Madara Uchiha \"Falling Into Place\" (★5)",
                       "skills": [
@@ -395559,7 +394992,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 2,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -395590,7 +395023,7 @@
                       "is_boss": false,
                       "role": "",
                       "defense": 0,
-                      "spawn_group": 3,
+                      "spawn_group": null,
                       "count": 1,
                       "carries": "",
                       "skills": [
@@ -395655,8 +395088,7 @@
       ],
       "sources": [
         "blazingonline.wiki (Project: Rebirth server data)",
-        "Naruto Blazing Wiki (Fandom), CC BY-SA 3.0 - https://naruto-blazing.fandom.com/wiki/Impact!_The_Great_War_Begins",
-        "hideoutgacha.com (Hideout Guides)"
+        "Naruto Blazing Wiki (Fandom), CC BY-SA 3.0 - https://naruto-blazing.fandom.com/wiki/Impact!_The_Great_War_Begins"
       ],
       "unit_boosts": []
     },
