@@ -73,12 +73,18 @@ found."**
 | Python exe | `.\.venv\Scripts\python.exe` |
 
 **Architecture decision:** a curated static site, no backend. Versioned JSON
-ships in the repo; the player's roster stays in their browser. Frontend proposed
-(React + TypeScript + Vite, canvas playback over the `Event` stream) but **not
-started**.
+ships in the repo; the player's roster stays in their browser. **Built** as a
+plain static site (no framework, no build step beyond `scripts/build_web.py`):
+`web/` sources, Pyodide 314.0.7 runs the Python solver in a Web Worker, canvas
+playback over the recorded frames.
 
-**Git:** branch `main`, **no remote configured**. Local identity is
-`venes`/`venes@localhost` — **change this before pushing anywhere public.**
+**Git:** `main` pushes to **https://github.com/venesshn/nb-solver** (public).
+Identity is repo-local `VN <venesshn@users.noreply.github.com>`. `gh` is at
+`C:\Program Files\GitHub CLI\gh.exe`, logged in as venesshn (repo, workflow).
+**History was rewritten on 2026-10-21 to drop the game portraits** before going
+public, so commit hashes quoted elsewhere in this file from before then are
+stale; find commits by message. Pre-rewrite backup: `data/raw/nbsolver-before-public.bundle`.
+Node 24 is at `C:\Program Files\nodejs`.
 
 ### User's working preferences (from user memory, always apply)
 
@@ -647,6 +653,9 @@ match at one known scale.**
 
 ## 10. Status summary
 
+**Live:** https://venesshn.github.io/nb-solver/ (preview). Every push to `main`
+runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages.
+
 **Done**
 
 - Mission catalogue: 166 missions, 435 stages, 1,343 maps, 7,169 enemy rows;
@@ -656,24 +665,40 @@ match at one known scale.**
 - `combat.py` implements the published formula, pinned by worked examples
 - AI parser: 6,315 states, 100% parsed; AI-driven enemy phase wired into
   `battle.py` and verified against real Orochimaru data
-- Portrait library: 551 icons, 551/551 slug matches, 1,089/1,100 units covered
-- Roster reading: 138 pages → 54 characters, 21 confidently named
-- **148 tests passing, ruff clean**
+- **Roster**: 83 units read from the recording (Python and browser readers
+  both 83/83, held-out run 1 identical) → `data/rosters/example.json`
+- **Solver** (`simulate.py`, `solver.py`): player fighters at the owned level,
+  every map and wave, jutsu-aware policy, multi-target jutsu, heals and buffs,
+  **combination attacks**, buddy-skill effects; shortlist of teams under the
+  cost limit and objective, Monte Carlo with a Wilson 95% interval, "depends
+  on" breakdown, showcase run, grinding advice. **Reproduces the user's e3003
+  clear** (test). 8 ms per run in CPython; a solve is ~1.5 s, ~7 s in browser.
+- **Website**: box from recording upload / example / JSON / manual; mission
+  search, stage, beat vs complete objective, helper auto/none/pick; results with
+  team, likelihood, depends-on, advice, assumptions, animated grid playback.
+- **156 tests passing, ruff clean**
 
-**In progress**
+**Known weaknesses (say so to the user, don't hide them)**
 
-- A **second recording exists and is unprocessed** (see §7)
-- Reading each page's **level**; verifying the icon box by eye; reaching full
-  coverage of all 83 units
+- Simulator may be too lenient (enemies never move) and too harsh elsewhere
+  (no field skills, no ability boosts, no switching). Body-only on e3003 comes
+  out 0% — unverified either way.
+- Movement/attack distances, the combination joining rule and the enemy
+  countdown for script-less enemies (3) are estimates — listed in `UNVERIFIED`.
+- Turn-limit / ninjutsu-finish / no-ailment objectives are judged; combo-finish
+  and drop-complete are reported as "can't be checked yet".
 
 **Not started**
 
-- Reaction branches; combination/follow-up/counter attacks; Field/Buddy/Sync
-  Skills; Perfect Dodge as a count; percentage attacks and fixed-damage areas;
-  **the solver itself**; completion likelihood; the frontend; catalogue expansion
+- Reaction branches; counters; Field and Sync Skills; Perfect Dodge as a count;
+  percentage attacks and fixed-damage areas; switching supports in;
+  ability boosts from dupes; catalogue expansion (story, story-hard, gaiden,
+  ninja-road, trial)
 
 **Open questions for the user**
 
-- Does the second recording cover all 83 units, in a fixed sort order, with
-  nobody skipped? Measure it, and ask if the measurement is ambiguous.
 - Team cost limit: assumed 200 — needs confirming.
+- Do 7★ units (8 in the data, e.g. Kakashi 'Entrusted With Hope' 14217) exist on
+  Revival? Until confirmed, the auto-helper only considers 6★.
+- Is Body-only on "The Evil Snake Shows its Fangs [B]" clearable with their Body
+  units? A yes would show the simulator is too harsh.

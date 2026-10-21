@@ -163,10 +163,11 @@ def pick_helper(
     catalogue: dict[int, Unit], stage: Stage, condition: ClearCondition | None
 ) -> Choice | None:
     elements = _enemy_elements(stage)
+    # 7-star entries exist in the data, but whether Revival has them is unconfirmed.
     pool = [
         Choice(unit=u, level=u.max_level, cost=0, helper=True)
         for u in catalogue.values()
-        if u.in_revival and u.rarity >= 6 and u.levels and _allowed(u, condition)
+        if u.in_revival and u.rarity == 6 and u.levels and _allowed(u, condition)
     ]
     return max(pool, key=lambda c: power(c, elements), default=None)
 
