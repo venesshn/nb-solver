@@ -121,6 +121,9 @@ class EnemyStats(BaseModel):
     carries: str = ""
     skills: list[EnemySkill] = Field(default_factory=list)
     field_skill: str = ""
+    field_skill_description: str = ""
+    # Abilities that blunt what we can do to it, e.g. "100% resistance to immobilization".
+    defences: list[str] = Field(default_factory=list)
     # Human-readable AI summary, plus the underlying state machine when published.
     ai_summary: list[str] = Field(default_factory=list)
     ai_states: list[str] = Field(default_factory=list)
@@ -129,8 +132,15 @@ class EnemyStats(BaseModel):
     def threats(self) -> list[Effect]:
         """Everything this enemy can do to the player, skills and field skill alike."""
         found = [e for skill in self.skills for e in skill.effects.effects]
-        found += EffectSet.parse(self.field_skill).effects
+        found += EffectSet.parse(
+            self.field_skill_description or self.field_skill
+        ).effects
         return [e for e in found if e.mode in (EffectMode.INFLICT, EffectMode.PIERCE)]
+
+    @cached_property
+    def resistances(self) -> list[Effect]:
+        """What it shrugs off, so the solver stops offering ailments that cannot land."""
+        return [e for line in self.defences for e in EffectSet.parse(line).effects]
 
 
 class WaveSpawn(BaseModel):

@@ -1,3 +1,4 @@
+from nbsolver.effects import EffectKind
 from nbsolver.missions import ConditionKind
 from nbsolver.models import AttackRange, Element
 from nbsolver.scrape.blazingonline import parse_mission
@@ -16,6 +17,11 @@ RAW = {
             "range": "Mid mid (width 189)",
             "boss": "Boss",
             "field": {"n": "Critical Rate Boost", "d": "critical rate reduced"},
+            "def": ["100% resistance to immobilization (immune)"],
+            "ab": [
+                "100% resistance to immobilization (immune)",
+                "50% damage reduction",
+            ],
             "sk": [
                 {
                     "slot": "ai",
@@ -172,6 +178,13 @@ def test_boss_detail_is_merged_from_foes():
     assert boss.is_boss
     assert boss.range is AttackRange.MID
     assert boss.field_skill == "Critical Rate Boost"
+    assert boss.field_skill_description == "critical rate reduced"
+    # The two lists overlap, and the duplicate must not be counted twice.
+    assert boss.defences == [
+        "100% resistance to immobilization (immune)",
+        "50% damage reduction",
+    ]
+    assert any(e.kind is EffectKind.IMMOBILIZATION for e in boss.resistances)
     assert boss.ai_states and boss.skills[0].description.startswith("2.5x attack")
     assert stage.boss_name == "Zabuza Momochi"
     assert stage.boss_element is Element.WISDOM

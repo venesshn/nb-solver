@@ -87,6 +87,10 @@ AILMENT_PHRASES: list[tuple[str, EffectKind]] = [
 
 CHANCE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%\s*chance of\s+(.+)", re.IGNORECASE)
 RESISTANCE_RE = re.compile(r"([A-Za-z ]+?)\s+Resistance:\s*(\d+)\s*%", re.IGNORECASE)
+# Enemy data words it the other way round: "100% resistance to immobilization".
+RESISTANCE_TO_RE = re.compile(
+    r"(\d+)\s*%\s*resistance to\s+([A-Za-z ]+)", re.IGNORECASE
+)
 BARRIER_RE = re.compile(r"Barrier:\s*(\d+)", re.IGNORECASE)
 DURATION_RE = re.compile(r"for\s+(\d+)\s*turn", re.IGNORECASE)
 TIER_RE = re.compile(r"tier\s*(\d+)", re.IGNORECASE)
@@ -271,6 +275,17 @@ def parse_effects(description: str) -> list[Effect]:
             effects.append(
                 Effect(
                     kind=kind,
+                    mode=EffectMode.RESIST,
+                    magnitude=float(value),
+                    targets_caster=caster,
+                    source=clause.strip(),
+                )
+            )
+
+        for value, name in RESISTANCE_TO_RE.findall(clause):
+            effects.append(
+                Effect(
+                    kind=_kind_for(name) or EffectKind.OTHER,
                     mode=EffectMode.RESIST,
                     magnitude=float(value),
                     targets_caster=caster,

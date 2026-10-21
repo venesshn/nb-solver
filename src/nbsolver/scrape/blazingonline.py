@@ -146,6 +146,13 @@ def _enemy(entry: dict[str, Any], foes: dict[str, Any]) -> EnemyStats:
         carries=_text(entry.get("carries")),
         skills=_skills(detail.get("sk")),
         field_skill=_text(field.get("n")),
+        field_skill_description=_text(field.get("d")),
+        defences=sorted(
+            {
+                _text(line)
+                for line in (detail.get("def") or []) + (detail.get("ab") or [])
+            }
+        ),
         ai_summary=[_text(line) for line in detail.get("ai") or []],
         ai_states=[_text(line) for line in raw.get("aiStates") or []],
     )
