@@ -26,3 +26,7 @@ test_log.txt
 
 # Game art: kept locally for the old icon matcher, never published
 data/portraits/*.webp
+
+# Generated site and tool dependencies
+site/
+node_modules/

@@ -1,0 +1,13 @@
+{
+    "name":  "nbsolver-tools",
+    "private":  true,
+    "type":  "module",
+    "description":  "Checks the browser box reader against the labelled recordings.",
+    "scripts":  {
+                    "validate-reader":  "node validate_reader.mjs"
+                },
+    "devDependencies":  {
+                            "pngjs":  "^7.0.0",
+                            "tesseract.js":  "^7.0.0"
+                        }
+}

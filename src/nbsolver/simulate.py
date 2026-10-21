@@ -348,6 +348,19 @@ def _priority(target: Fighter, bosses: set[str]) -> float:
     return (2.0 if target.key in bosses else 0.0) + urgency
 
 
+def describe_move(start: Position, end: Position) -> str:
+    """How a player would say it: rows grow downward, as on the phone screen."""
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    span = math.hypot(dx, dy)
+    if span < 0.3:
+        return "stays put"
+    vertical = "up" if dy < -0.3 else "down" if dy > 0.3 else ""
+    horizontal = "left" if dx < -0.3 else "right" if dx > 0.3 else ""
+    way = "-".join(p for p in (vertical, horizontal) if p)
+    tiles = "1 tile" if round(span) <= 1 else f"{round(span)} tiles"
+    return f"moves {tiles} {way}"
+
+
 def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order, str]:
     """Pick the best affordable action, and say it the way a player would."""
     actor = state.team.member(member.key)
@@ -387,10 +400,8 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
     if not in_range:
         nearest = min(living, key=lambda e: math.dist(actor.position, e.position))
         spot = _approach(actor.position, nearest.position, member.reach)
-        return (
-            Order(fighter=member.key, move_to=spot),
-            f"moves to {spot} toward {nearest.name} and stalls (out of reach)",
-        )
+        said = f"{describe_move(actor.position, spot)} toward {nearest.name} and stalls"
+        return Order(fighter=member.key, move_to=spot), f"{said} (nothing in reach yet)"
 
     best: tuple[float, Order, str] | None = None
     for target in in_range:
@@ -437,11 +448,11 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
                 what = f"{kind} {move.name}" if move else "a normal attack"
                 colour = damage_colour(actor.current_element, target.current_element)
                 extra = f" (also hits {len(splash)} more)" if splash else ""
-                best = (
-                    value,
-                    order,
-                    f"moves to {spot} and uses {what} on {target.name}{extra} [{colour}]",
+                advantage = {"red": "advantage", "blue": "disadvantage"}.get(
+                    colour, "neutral"
                 )
+                said = f"{describe_move(actor.position, spot)} and uses {what} on"
+                best = (value, order, f"{said} {target.name}{extra} ({advantage})")
     assert best is not None
     return best[1], best[2]
 

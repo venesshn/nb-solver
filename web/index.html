@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Naruto Blazing Mission Solver</title>
+    <meta name="description" content="Pick a Naruto Blazing mission, load your own box, and get a team and a turn-by-turn plan with an honest clear likelihood." />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Naruto Blazing Mission Solver <span class="badge">preview</span></h1>
+      <p class="lede">Choose a mission, load <em>your</em> box, and get the team that clears it most easily, with a turn-by-turn plan and an honest chance of success.</p>
+    </header>
+
+    <main>
+      <section id="roster-panel" class="card">
+        <h2>1 · Your box</h2>
+        <div class="row">
+          <label>Profile ID <input id="profile" placeholder="e.g. REDACTED" inputmode="numeric" /></label>
+          <label>Team cost limit <input id="cost-limit" type="number" min="1" max="400" value="200" /></label>
+        </div>
+        <p class="hint">Your box is saved in this browser under your profile ID. Nothing is uploaded anywhere.</p>
+        <div class="row buttons">
+          <label class="button">Upload box recording<input id="recording" type="file" accept="video/*" hidden /></label>
+          <button id="example" type="button" class="secondary">Use the example box (83 units)</button>
+          <label class="button secondary">Import JSON<input id="import" type="file" accept="application/json" hidden /></label>
+          <button id="export" type="button" class="secondary">Export JSON</button>
+          <button id="clear" type="button" class="danger">Clear</button>
+        </div>
+        <div id="reader" class="reader" hidden>
+          <p id="reader-status"></p>
+          <progress id="reader-progress" max="1" value="0"></progress>
+          <div id="reader-review"></div>
+        </div>
+        <details class="howto">
+          <summary>How to record your box</summary>
+          <ol>
+            <li>Filter the box to the units you want considered, and keep one sort order.</li>
+            <li>Start a screen recording, open the first unit's detail page, then flick to the next unit, pausing about a second on each.</li>
+            <li>Go through every unit once, without going back, then stop the recording and upload it here.</li>
+          </ol>
+          <p class="hint">Tested on 1180×2556 iPhone recordings. Other screen sizes may not read correctly yet; anything doubtful is shown for you to confirm.</p>
+        </details>
+        <div class="row">
+          <input id="unit-search" list="unit-list" placeholder="Add a unit by name or title…" />
+          <datalist id="unit-list"></datalist>
+          <label>Level <input id="unit-level" type="number" min="1" max="150" value="1" /></label>
+          <button id="add-unit" type="button">Add</button>
+        </div>
+        <p id="roster-summary" class="hint"></p>
+        <div class="table-wrap"><table id="roster"><thead><tr><th>Unit</th><th>★</th><th>Element</th><th>Level</th><th>Cost</th><th></th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <section id="mission-panel" class="card">
+        <h2>2 · The mission</h2>
+        <input id="mission-search" placeholder="Search missions…" />
+        <select id="mission" size="8"></select>
+        <div class="row">
+          <label>Stage <select id="stage"></select></label>
+        </div>
+        <fieldset class="row">
+          <legend>Goal</legend>
+          <label><input type="radio" name="goal" value="beat" checked /> Beat it (easiest clear)</label>
+          <label><input type="radio" name="goal" value="complete" /> Complete an objective</label>
+          <select id="objective" disabled></select>
+        </fieldset>
+        <div class="row">
+          <label>Friend's helper
+            <select id="helper-mode">
+              <option value="auto">Best available (auto)</option>
+              <option value="none">No helper</option>
+              <option value="pick">Choose…</option>
+            </select>
+          </label>
+          <input id="helper-search" list="unit-list" placeholder="Helper unit…" hidden />
+          <label>Thoroughness
+            <select id="tries">
+              <option value="20">Quick</option>
+              <option value="40" selected>Standard</option>
+              <option value="100">Thorough</option>
+            </select>
+          </label>
+        </div>
+        <button id="solve" type="button" class="primary">Solve</button>
+        <p id="engine-status" class="hint">The solver loads the first time you press Solve (about 15 MB, cached afterwards).</p>
+        <progress id="solve-progress" max="1" value="0" hidden></progress>
+      </section>
+
+      <section id="result-panel" class="card" hidden>
+        <h2>3 · The plan</h2>
+        <div id="verdict"></div>
+        <div id="team"></div>
+        <div id="playback" hidden>
+          <canvas id="grid"></canvas>
+          <p id="caption" class="caption"></p>
+          <div class="row buttons">
+            <button id="first" type="button" class="secondary">⏮</button>
+            <button id="back" type="button" class="secondary">◀</button>
+            <button id="play" type="button">▶ Play</button>
+            <button id="forward" type="button" class="secondary">▶</button>
+            <input id="scrub" type="range" min="0" value="0" />
+          </div>
+          <details>
+            <summary>Every turn, in order</summary>
+            <ol id="steps"></ol>
+          </details>
+        </div>
+        <div id="depends"></div>
+        <div id="advice"></div>
+        <details id="assumptions"><summary>What the simulator assumes</summary><ul></ul></details>
+      </section>
+    </main>
+
+    <footer>
+      <p>A fan-made tool, not affiliated with Bandai Namco. Mission and unit data come from community projects (<a href="https://blazingonline.wiki" rel="noopener">blazingonline.wiki</a>, <a href="https://www.hideoutgacha.com/games/naruto-blazing" rel="noopener">hideoutgacha</a>). No game art is used or hosted here.</p>
+      <p>"No winning strategy found" means the search did not find one, not that none exists. "Not possible to complete" is only shown when no legal team can be formed.</p>
+    </footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

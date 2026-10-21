@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f131a;
+  --card: #171c25;
+  --line: #2a3140;
+  --text: #e8ecf3;
+  --muted: #9aa5b8;
+  --accent: #ff8a1f;
+  --good: #4dd27a;
+  --bad: #ff5d5d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+header, main, footer { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 24px; }
+h1 { font-size: 1.6rem; margin: 0 0 6px; }
+h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.lede { color: var(--muted); margin: 0 0 16px; }
+.badge { font-size: .7rem; vertical-align: middle; background: var(--accent); color: #111; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .05em; }
+main { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+#result-panel { grid-column: 1 / -1; }
+@media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 8px 0; }
+fieldset.row { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+input, select, button, .button { font: inherit; color: var(--text); background: #0d1117; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+input[type="radio"] { padding: 0; }
+#mission { width: 100%; margin-top: 8px; }
+#mission-search, #unit-search { flex: 1; min-width: 180px; width: 100%; }
+button, .button { cursor: pointer; background: #24304a; color: var(--text); }
+button.primary { background: var(--accent); color: #111; font-weight: 600; padding: 10px 22px; border: none; }
+button.secondary, .button.secondary { background: #1d2431; }
+button.danger { background: #3a1d22; }
+button:disabled { opacity: .5; cursor: progress; }
+.hint { color: var(--muted); font-size: .88rem; margin: 6px 0; }
+progress { width: 100%; height: 10px; }
+.table-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+th { position: sticky; top: 0; background: #1b2130; }
+td input { width: 64px; padding: 3px 6px; }
+td button { padding: 2px 8px; }
+.el { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.verdict { font-size: 1.25rem; font-weight: 600; margin: 0 0 6px; }
+.verdict.good { color: var(--good); }
+.verdict.bad { color: var(--bad); }
+.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin: 10px 0; }
+.unit { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #12161f; }
+.unit .slot { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+.unit .name { font-weight: 600; }
+.unit .title { color: var(--muted); font-size: .85rem; }
+#grid { width: 100%; max-width: 640px; display: block; margin: 10px auto; background: #0b0e14; border-radius: 8px; }
+.caption { text-align: center; min-height: 2.6em; }
+#scrub { flex: 1; min-width: 120px; }
+#steps { max-height: 280px; overflow: auto; font-size: .88rem; }
+#steps li.current { color: var(--accent); }
+.reader { border: 1px dashed var(--line); border-radius: 8px; padding: 10px; margin: 8px 0; }
+.review { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin-top: 8px; }
+.review figure { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.review img { width: 100%; border-radius: 6px; }
+.review figcaption { font-size: .85rem; }
+.flag { color: var(--accent); }
+footer { color: var(--muted); font-size: .85rem; padding: 24px 16px 40px; }
+footer a { color: var(--muted); }
+details summary { cursor: pointer; color: var(--muted); margin: 8px 0; }
