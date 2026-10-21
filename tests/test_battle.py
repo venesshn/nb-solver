@@ -239,6 +239,30 @@ def test_a_jutsu_spends_chakra_and_a_discount_makes_it_cheaper():
     assert state.enemies[0].health == 5000 - 3000
 
 
+def test_a_fielded_unit_gains_one_chakra_a_turn_and_the_bench_gains_none():
+    front, benched = hero(), hero(key="bench")
+    state = battle([front, benched], [foe()])
+    state.team.on_field = ["hero"]
+
+    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, [Order(fighter="hero")], NoLuck())
+    assert front.chakra == 2.0
+    assert benched.chakra == 0.0
+
+
+def test_chakra_recovery_sealing_stops_the_gauge_filling():
+    sealed = hero()
+    sealed.gain(Effect(kind=EffectKind.CHAKRA_RECOVERY_SEAL, duration=2))
+    state = battle([sealed], [foe()])
+
+    take_turn(state, [Order(fighter="hero")], NoLuck())
+    assert sealed.chakra == 0.0
+
+    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, [Order(fighter="hero")], NoLuck())
+    assert sealed.chakra == 1.0
+
+
 def test_switch_sealing_pins_a_unit_on_the_field():
     first, second = hero(), hero(key="bench")
     state = battle([first, second], [foe()])

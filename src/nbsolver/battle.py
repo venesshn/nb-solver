@@ -23,9 +23,9 @@ Position = tuple[float, float]
 
 
 class BattleRules(BaseModel):
-    """Numbers no data source publishes. Every default here is a guess."""
+    """Numbers the data does not publish, only some of which are confirmed."""
 
-    # What a jutsu costs is published per unit (Jutsu.chakra); only the refill is unknown.
+    # Confirmed by the player: one gauge each time a unit's turn comes round.
     chakra_per_turn: float = 1.0
     # Missions reach at least tier 6, and what any tier is worth is undocumented.
     slip_damage_by_tier: dict[int, int] = Field(
@@ -41,7 +41,6 @@ class BattleRules(BaseModel):
 
 
 UNVERIFIED_RULES = (
-    "chakra_per_turn",
     "slip_damage_by_tier",
     "slip_damage_default",
     "knockback_distance",
@@ -549,10 +548,12 @@ def take_turn(
     if not state.over:
         events += tick_slip_damage(state, rng)
 
+    # Chakra comes with taking a turn, so the three on the bench do not gain any.
+    for fighter in state.team.fielded():
+        if not fighter.has(EffectKind.CHAKRA_RECOVERY_SEAL, EffectMode.INFLICT):
+            fighter.chakra += state.rules.chakra_per_turn
+
+    # Effects decay last so a stated duration covers that many whole turns.
     for fighter in [*state.team.members, *state.enemies]:
         fighter.expire()
-        if fighter.side is Side.PLAYER and not fighter.has(
-            EffectKind.CHAKRA_RECOVERY_SEAL, EffectMode.INFLICT
-        ):
-            fighter.chakra += state.rules.chakra_per_turn
     return events
