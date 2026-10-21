@@ -1,13 +1,16 @@
+import json
 from pathlib import Path
 
 import pytest
 
+from nbsolver.catalogue import load_units
 from nbsolver.models import Ability, AttackRange, Element, OwnedUnit, StatLevel, Unit
 from nbsolver.roster import Roster
 
 SAKURA = 10542
 NARUTO = 10013
 HINATA = 10100
+SARADA = 19001
 
 
 def make_unit(unit_id: int = SAKURA) -> Unit:
@@ -41,6 +44,20 @@ def test_cost_falls_as_abilities_unlock():
     assert OwnedUnit(unit_id=unit.unit_id, dupes=0).cost(unit) == 60
     assert OwnedUnit(unit_id=unit.unit_id, dupes=3).cost(unit) == 30
     assert OwnedUnit(unit_id=unit.unit_id, dupes=5).cost(unit) == 30
+
+
+def test_rebirth_units_are_not_offered_to_a_revival_player(tmp_path: Path):
+    path = tmp_path / "units.json"
+    sakura, sarada = make_unit(SAKURA), make_unit(SARADA)
+    path.write_text(
+        json.dumps([sakura.model_dump(mode="json"), sarada.model_dump(mode="json")]),
+        encoding="utf-8",
+    )
+
+    assert sakura.in_revival
+    assert not sarada.in_revival
+    assert set(load_units(path)) == {SAKURA}
+    assert set(load_units(path, revival_only=False)) == {SAKURA, SARADA}
 
 
 def test_stats_interpolate_between_level_one_and_max():

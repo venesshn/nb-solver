@@ -105,6 +105,15 @@ def build_units(
     return units
 
 
+def load_units(
+    path: Path = UNITS_PATH, *, revival_only: bool = True
+) -> dict[int, Unit]:
+    """Every unit the player could own, keyed by id."""
+    records = json.loads(path.read_text(encoding="utf-8"))
+    units = (Unit.model_validate(record) for record in records)
+    return {u.unit_id: u for u in units if u.in_revival or not revival_only}
+
+
 def main() -> None:
     # Mission titles contain characters the Windows console codec cannot encode.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

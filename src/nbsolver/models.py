@@ -16,11 +16,19 @@ MAX_LIMIT_BREAK_LEVEL = 150
 MAX_LUCK = 99
 MAX_DUPES = 5
 
+# Two fan projects revived the game. Revival froze the roster as it stood at
+# shutdown; Rebirth keeps adding units. The source data is Revival's, but a few
+# Rebirth entries leak in with no techniques attached.
+REBIRTH_ONLY_UNIT_IDS = frozenset(
+    {19001, 19002, 19004, 19006, 19007, 19008, 19009, 19013, 19014, 19022, 88020}
+)
+
 __all__ = [
     "MAX_DUPES",
     "MAX_LEVEL",
     "MAX_LIMIT_BREAK_LEVEL",
     "MAX_LUCK",
+    "REBIRTH_ONLY_UNIT_IDS",
     "Ability",
     "AttackRange",
     "Element",
@@ -92,6 +100,11 @@ class Unit(BaseModel):
 
     awaken_to: int | None = None
     family: list[int] = Field(default_factory=list)
+
+    @property
+    def in_revival(self) -> bool:
+        """Whether a Revival player can ever obtain this unit."""
+        return self.unit_id not in REBIRTH_ONLY_UNIT_IDS
 
     @property
     def min_cost(self) -> int:
