@@ -30,3 +30,4 @@ data/portraits/*.webp
 # Generated site and tool dependencies
 site/
 node_modules/
+*.traineddata
