@@ -120,6 +120,13 @@ class EnemyStats(BaseModel):
     range: AttackRange | None = None
     range_text: str = ""
     is_boss: bool = False
+    # "Boss" or "Mid-boss" where published; more reliable than `is_boss`, which
+    # is set for anything carrying an AI script.
+    role: str = ""
+    defense: int = 0
+    # Which numbered spawn group brings this enemy on, and how many arrive at once.
+    spawn_group: int | None = None
+    count: int = 1
     carries: str = ""
     skills: list[EnemySkill] = Field(default_factory=list)
     field_skill: str = ""
@@ -151,17 +158,52 @@ class WaveSpawn(BaseModel):
     rows: int = 0
 
 
+class Tile(BaseModel):
+    column: int
+    row: int
+
+
+class GroupSpawn(BaseModel):
+    """Where a numbered enemy group walks on. Several tiles means several arrive."""
+
+    group: int
+    tiles: list[Tile] = Field(default_factory=list)
+
+
+class MapGrid(BaseModel):
+    """The battlefield itself: its size, where you start and where enemies enter."""
+
+    columns: int = 0
+    rows: int = 0
+    player_starts: list[Tile] = Field(default_factory=list)
+    spawns: list[GroupSpawn] = Field(default_factory=list)
+
+    def tiles_for(self, group: int) -> list[Tile]:
+        return next((s.tiles for s in self.spawns if s.group == group), [])
+
+
+class SpawnRule(BaseModel):
+    """A reinforcement instruction sitting between enemies in the line-up."""
+
+    index: int
+    text: str
+    # How many enemies are listed above it, which is where it takes effect.
+    after: int = 0
+
+
 class EnemySet(BaseModel):
     """One possible enemy line-up for a map; `weight` is its chance of being rolled."""
 
     weight: float = 100.0
     enemies: list[EnemyStats] = Field(default_factory=list)
     waves: list[WaveSpawn] = Field(default_factory=list)
+    spawn_rules: list[SpawnRule] = Field(default_factory=list)
 
 
 class BattleMap(BaseModel):
     number: int
     clear: str = ""
+    grid: MapGrid | None = None
     sets: list[EnemySet] = Field(default_factory=list)
 
     @property

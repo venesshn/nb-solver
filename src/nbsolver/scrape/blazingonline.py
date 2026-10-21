@@ -140,6 +140,8 @@ def _enemy(entry: dict[str, Any], foes: dict[str, Any]) -> EnemyStats:
         hp=entry.get("hp") or detail.get("hp") or 0,
         attack=entry.get("atk") or detail.get("atk") or 0,
         level=entry.get("lv") or 1,
+        # One entry can stand for several identical enemies arriving together.
+        count=entry.get("x") or 1,
         range=_range(range_text),
         range_text=range_text,
         is_boss=bool(entry.get("boss") or detail.get("boss")),
