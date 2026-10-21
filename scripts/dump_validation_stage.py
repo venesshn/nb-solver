@@ -36,7 +36,9 @@ for mission in catalogue.missions:
                     for line in enemy.ai_states:
                         lines.append(f"          ai: {line}")
                     for skill in enemy.skills:
-                        lines.append(f"          sk: {skill.name} — {skill.description}")
+                        lines.append(
+                            f"          sk: {skill.name} — {skill.description}"
+                        )
                     for line in enemy.defences:
                         lines.append(f"          def: {line}")
 

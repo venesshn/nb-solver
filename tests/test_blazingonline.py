@@ -1,5 +1,5 @@
 from nbsolver.effects import EffectKind
-from nbsolver.missions import ConditionKind
+from nbsolver.missions import ConditionKind, EnemySkill
 from nbsolver.models import AttackRange, Element
 from nbsolver.scrape.blazingonline import parse_mission
 
@@ -188,6 +188,17 @@ def test_boss_detail_is_merged_from_foes():
     assert boss.ai_states and boss.skills[0].description.startswith("2.5x attack")
     assert stage.boss_name == "Zabuza Momochi"
     assert stage.boss_element is Element.WISDOM
+
+
+def test_a_barrier_amount_is_read_from_the_skill_name():
+    # The game writes the size into the name and leaves the description vague.
+    skill = EnemySkill(
+        name="Water Style: Water Wall / (Barrier: 3000)",
+        description="Barrier for 5 turn(s)",
+    )
+    barrier = next(e for e in skill.effects.effects if e.kind is EffectKind.BARRIER)
+    assert barrier.magnitude == 3000
+    assert barrier.duration == 5
 
 
 def test_per_map_stats_override_the_shared_foe_entry():

@@ -103,7 +103,9 @@ class EnemySkill(BaseModel):
 
     @cached_property
     def effects(self) -> EffectSet:
-        return EffectSet.parse(self.description)
+        # Barrier amounts and resistances are written into the NAME, not the
+        # description, and some descriptions are blank entirely.
+        return EffectSet.parse(f"{self.name}. {self.description}")
 
 
 class EnemyStats(BaseModel):
