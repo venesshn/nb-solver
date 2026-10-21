@@ -1,0 +1,73 @@
+"""Reduce the recording's stills to one frame per character viewed.
+
+The player opens each character in turn, so the stills come in runs: several
+near-identical frames while a page is open, then a jump to the next character.
+Keeping the sharpest frame of each run gives one picture per unit.
+
+    python scripts/box_pages.py
+"""
+
+import shutil
+import sys
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+ROOT = Path(__file__).resolve().parents[1]
+IN_DIR = ROOT / "data" / "analysis" / "box"
+OUT_DIR = ROOT / "data" / "analysis" / "pages"
+
+# Below this the two stills are the same page; above it the player has moved on.
+NEW_PAGE = 18.0
+
+
+def thumb(frame: np.ndarray) -> np.ndarray:
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return cv2.resize(grey, (64, 128), interpolation=cv2.INTER_AREA).astype(np.float32)
+
+
+def sharpness(frame: np.ndarray) -> float:
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(grey, cv2.CV_64F).var())
+
+
+def group() -> list[list[Path]]:
+    stills = sorted(IN_DIR.glob("*.png"))
+    runs: list[list[Path]] = []
+    current: list[Path] = []
+    previous: np.ndarray | None = None
+    for path in stills:
+        small = thumb(cv2.imread(str(path)))
+        if previous is not None and float(np.mean(np.abs(small - previous))) > NEW_PAGE:
+            runs.append(current)
+            current = []
+        current.append(path)
+        previous = small
+    if current:
+        runs.append(current)
+    return runs
+
+
+def main() -> None:
+    if OUT_DIR.exists():
+        shutil.rmtree(OUT_DIR)
+    OUT_DIR.mkdir(parents=True)
+
+    runs = group()
+    print(f"{sum(len(r) for r in runs)} stills -> {len(runs)} pages", flush=True)
+    for number, run in enumerate(runs):
+        best = max(run, key=lambda p: sharpness(cv2.imread(str(p))))
+        shutil.copy(best, OUT_DIR / f"page_{number:03d}_{best.stem}.png")
+    print(f"wrote {len(runs)} pages to {OUT_DIR}", flush=True)
+    sizes = [len(r) for r in runs]
+    print(
+        f"frames per page: min {min(sizes)} median {int(np.median(sizes))} max {max(sizes)}",
+        flush=True,
+    )
+
+
+if __name__ == "__main__":
+    main()
