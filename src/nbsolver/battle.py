@@ -27,6 +27,9 @@ class BattleRules(BaseModel):
 
     # Confirmed by the player: one gauge each time a unit's turn comes round.
     chakra_per_turn: float = 1.0
+    # Confirmed by the player: a combo past this many hits tops everyone up again.
+    combo_hits_for_bonus: int = 15
+    combo_chakra_bonus: float = 1.0
     # Missions reach at least tier 6, and what any tier is worth is undocumented.
     slip_damage_by_tier: dict[int, int] = Field(
         default_factory=lambda: {1: 200, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200}
@@ -41,6 +44,7 @@ class BattleRules(BaseModel):
 
 
 UNVERIFIED_RULES = (
+    "combo_chakra_bonus",
     "slip_damage_by_tier",
     "slip_damage_default",
     "knockback_distance",
@@ -144,9 +148,11 @@ class Fighter(BaseModel):
 
 
 class Team(BaseModel):
-    """Six units sharing one health pool, three on the field and three on the bench."""
+    """Three pairs sharing one health pool: one of each pair is on the field."""
 
     members: list[Fighter] = Field(default_factory=list)
+    # Each entry is the two halves of one slot, which swap with each other.
+    pairs: list[tuple[str, str]] = Field(default_factory=list)
     on_field: list[str] = Field(default_factory=list)
     health: int = 0
 
@@ -164,16 +170,22 @@ class Team(BaseModel):
     def fielded(self) -> list[Fighter]:
         return [m for m in self.members if m.key in self.on_field]
 
-    def switch(self, out_key: str, in_key: str) -> bool:
-        """Blocked while the unit leaving is switch sealed."""
-        leaving = self.member(out_key)
-        if leaving is None or self.member(in_key) is None:
-            return False
-        if out_key not in self.on_field or in_key in self.on_field:
+    def buddy(self, key: str) -> Fighter | None:
+        for first, second in self.pairs:
+            if key == first:
+                return self.member(second)
+            if key == second:
+                return self.member(first)
+        return None
+
+    def switch(self, key: str) -> bool:
+        """A unit can only trade places with its own buddy, and sealing stops it."""
+        leaving, partner = self.member(key), self.buddy(key)
+        if leaving is None or partner is None or key not in self.on_field:
             return False
         if leaving.has(EffectKind.SWITCH_SEAL, EffectMode.INFLICT):
             return False
-        self.on_field[self.on_field.index(out_key)] = in_key
+        self.on_field[self.on_field.index(key)] = partner.key
         return True
 
 
@@ -196,6 +208,8 @@ class Order(BaseModel):
     move_to: Position | None = None
     target: str = ""
     multiplier: float = 1.0
+    # How many times the attack connects, which is what builds the combo.
+    hits: int = 1
     jutsu: bool = False
     chakra_cost: float = 0.0
 
@@ -463,8 +477,9 @@ def tick_slip_damage(state: BattleState, rng: random.Random) -> list[Event]:
 
 def _player_phase(
     state: BattleState, orders: list[Order], rng: random.Random
-) -> list[Event]:
+) -> tuple[list[Event], int]:
     events: list[Event] = []
+    combo = 0
     for order in orders:
         actor = state.team.member(order.fighter)
         if (
@@ -500,12 +515,15 @@ def _player_phase(
         target = state.fighter(order.target)
         if target is None or target.defeated:
             continue
-        events += resolve_attack(
+        landed = resolve_attack(
             state, actor, target, order.multiplier, rng, jutsu=order.jutsu
         )
+        events += landed
+        if any(e.kind == "damage" for e in landed):
+            combo += order.hits
         if state.over:
             break
-    return events
+    return events, combo
 
 
 def _chakra_discount(fighter: Fighter) -> float:
@@ -534,6 +552,12 @@ def _enemy_phase(state: BattleState, rng: random.Random) -> list[Event]:
     return events
 
 
+def _give_chakra(state: BattleState, fighter: Fighter, amount: float) -> None:
+    if fighter.has(EffectKind.CHAKRA_RECOVERY_SEAL, EffectMode.INFLICT):
+        return
+    fighter.chakra += amount
+
+
 def take_turn(
     state: BattleState,
     orders: list[Order],
@@ -542,16 +566,24 @@ def take_turn(
     """One full round: the player acts, the enemies answer, then everything decays."""
     rng = rng or random.Random()
     state.turn += 1
-    events = _player_phase(state, orders, rng)
+    events, combo = _player_phase(state, orders, rng)
     if not state.over:
         events += _enemy_phase(state, rng)
     if not state.over:
         events += tick_slip_damage(state, rng)
 
-    # Chakra comes with taking a turn, so the three on the bench do not gain any.
+    # A unit's buddy charges alongside it, so a whole pair gains from one turn.
     for fighter in state.team.fielded():
-        if not fighter.has(EffectKind.CHAKRA_RECOVERY_SEAL, EffectMode.INFLICT):
-            fighter.chakra += state.rules.chakra_per_turn
+        _give_chakra(state, fighter, state.rules.chakra_per_turn)
+        if (partner := state.team.buddy(fighter.key)) is not None:
+            _give_chakra(state, partner, state.rules.chakra_per_turn)
+
+    if combo > state.rules.combo_hits_for_bonus:
+        for fighter in state.team.members:
+            _give_chakra(state, fighter, state.rules.combo_chakra_bonus)
+        events.append(
+            Event(turn=state.turn, kind="combo", amount=combo, note="chakra bonus")
+        )
 
     # Effects decay last so a stated duration covers that many whole turns.
     for fighter in [*state.team.members, *state.enemies]:

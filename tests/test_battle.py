@@ -239,15 +239,40 @@ def test_a_jutsu_spends_chakra_and_a_discount_makes_it_cheaper():
     assert state.enemies[0].health == 5000 - 3000
 
 
-def test_a_fielded_unit_gains_one_chakra_a_turn_and_the_bench_gains_none():
-    front, benched = hero(), hero(key="bench")
-    state = battle([front, benched], [foe()])
-    state.team.on_field = ["hero"]
+def test_a_fielded_unit_gains_one_chakra_a_turn_and_its_buddy_charges_with_it():
+    front, benched, alone = hero(), hero(key="bench"), hero(key="alone")
+    state = battle([front, benched, alone], [foe()])
+    state.team.pairs = [("hero", "bench")]
+    state.team.on_field = ["hero", "alone"]
 
     take_turn(state, [Order(fighter="hero")], NoLuck())
     take_turn(state, [Order(fighter="hero")], NoLuck())
     assert front.chakra == 2.0
-    assert benched.chakra == 0.0
+    assert benched.chakra == 2.0
+    assert alone.chakra == 2.0
+
+
+def test_a_combo_past_fifteen_hits_tops_everyone_up_again():
+    front, benched = hero(), hero(key="bench")
+    state = battle([front, benched], [foe(max_health=99999, health=99999)])
+    state.team.pairs = [("hero", "bench")]
+    state.team.on_field = ["hero"]
+
+    take_turn(state, [Order(fighter="hero", target="foe", hits=15)], NoLuck())
+    assert front.chakra == 1.0
+
+    events = take_turn(state, [Order(fighter="hero", target="foe", hits=16)], NoLuck())
+    assert any(e.kind == "combo" for e in events)
+    assert front.chakra == 3.0
+    assert benched.chakra == 3.0
+
+
+def test_a_missed_swing_builds_no_combo():
+    guarded = foe()
+    guarded.gain(Effect(kind=EffectKind.PERFECT_DODGE, mode=EffectMode.GRANT))
+    state = battle([hero()], [guarded])
+    events = take_turn(state, [Order(fighter="hero", target="foe", hits=40)], NoLuck())
+    assert not any(e.kind == "combo" for e in events)
 
 
 def test_chakra_recovery_sealing_stops_the_gauge_filling():
@@ -266,12 +291,14 @@ def test_chakra_recovery_sealing_stops_the_gauge_filling():
 def test_switch_sealing_pins_a_unit_on_the_field():
     first, second = hero(), hero(key="bench")
     state = battle([first, second], [foe()])
+    state.team.pairs = [("hero", "bench")]
     state.team.on_field = ["hero"]
-    assert state.team.switch("hero", "bench") is True
+    assert state.team.switch("hero") is True
+    assert state.team.on_field == ["bench"]
 
     state.team.on_field = ["hero"]
     first.gain(Effect(kind=EffectKind.SWITCH_SEAL))
-    assert state.team.switch("hero", "bench") is False
+    assert state.team.switch("hero") is False
 
 
 def test_an_enemy_strikes_when_its_printed_countdown_reaches_zero():
