@@ -60,6 +60,16 @@ function maxLevel(unit) {
   return Math.max(unit.max_level || 1, unit.max_level_limit_break || 1);
 }
 
+// Mirrors Unit.cost_with_abilities: cost falls toward its floor as abilities unlock.
+function costOf(unit, owned) {
+  const total = (unit.abilities || []).length;
+  const unlocked = Math.min(owned.dupes || 0, total);
+  const floor = unit.cost_all_abilities ?? unit.cost;
+  if (!total || !unlocked) return unit.cost;
+  if (unlocked >= total) return floor;
+  return Math.round(unit.cost + (floor - unit.cost) * (unlocked / total));
+}
+
 function renderRoster() {
   const body = $("roster").querySelector("tbody");
   const rows = state.roster.units
@@ -69,9 +79,10 @@ function renderRoster() {
     .map(({ o, index, u }) =>
       u
         ? `<tr><td>${escapeHtml(u.name)}<br><small>${escapeHtml(u.title)}</small></td><td>${u.rarity}</td><td>${dot(u.element)}${u.element}</td>
-           <td><input type="number" min="1" max="${maxLevel(u)}" value="${o.level}" data-level="${index}" /></td><td>${u.cost}</td>
+           <td><input type="number" min="1" max="${maxLevel(u)}" value="${o.level}" data-level="${index}" /></td>
+           <td><input type="number" min="0" max="${Math.min(5, (u.abilities || []).length)}" value="${o.dupes || 0}" data-abilities="${index}" title="Abilities unlocked" /></td><td>${costOf(u, o)}</td>
            <td><button type="button" data-remove="${index}" title="Remove">✕</button></td></tr>`
-        : `<tr><td colspan="5">Unknown unit #${o.unit_id}</td><td><button type="button" data-remove="${index}">✕</button></td></tr>`,
+        : `<tr><td colspan="6">Unknown unit #${o.unit_id}</td><td><button type="button" data-remove="${index}">✕</button></td></tr>`,
     )
     .join("");
   const distinct = new Set(state.roster.units.map((o) => o.unit_id)).size;
@@ -81,6 +92,14 @@ function renderRoster() {
 }
 
 $("roster").addEventListener("change", (event) => {
+  const abilities = event.target.dataset.abilities;
+  if (abilities !== undefined) {
+    const entry = state.roster.units[Number(abilities)];
+    const unit = state.byId.get(entry.unit_id);
+    entry.dupes = Math.max(0, Math.min(5, (unit.abilities || []).length, Number(event.target.value) || 0));
+    saveRoster();
+    return;
+  }
   const index = event.target.dataset.level;
   if (index === undefined) return;
   const entry = state.roster.units[Number(index)];
@@ -123,6 +142,7 @@ $("add-unit").addEventListener("click", () => {
 $("example").addEventListener("click", async () => {
   if (state.roster.units.length && !confirm("Replace your current box with the example box?")) return;
   state.roster = await (await fetch("data/example-roster.json")).json();
+  $("cost-limit").value = state.roster.team_cost_limit || 200;
   saveRoster();
 });
 
@@ -149,6 +169,7 @@ $("import").addEventListener("change", async (event) => {
     const data = JSON.parse(await file.text());
     if (!Array.isArray(data.units)) throw new Error("no units list");
     state.roster = { ...emptyRoster(), ...data };
+    $("cost-limit").value = state.roster.team_cost_limit || 200;
     saveRoster();
   } catch (error) {
     alert(`That file isn't a box export: ${error.message}`);

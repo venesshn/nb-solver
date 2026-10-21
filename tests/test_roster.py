@@ -60,6 +60,12 @@ def test_rebirth_units_are_not_offered_to_a_revival_player(tmp_path: Path):
     assert set(load_units(path, revival_only=False)) == {SAKURA, SARADA}
 
 
+def test_revival_has_no_seven_star_units():
+    kakashi = make_unit(14217).model_copy(update={"rarity": 7})
+    assert not kakashi.in_revival
+    assert make_unit(SAKURA).in_revival
+
+
 def test_stats_interpolate_between_level_one_and_max():
     unit = make_unit()
 

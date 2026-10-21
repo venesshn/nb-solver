@@ -12,8 +12,10 @@ import math
 import random
 import re
 from dataclasses import dataclass, field
+from functools import cached_property
 
 from nbsolver.battle import (
+    BattleRules,
     BattleState,
     Event,
     Fighter,
@@ -23,11 +25,12 @@ from nbsolver.battle import (
     enemy_fighter,
     take_turn,
 )
-from nbsolver.combat import damage, damage_colour
+from nbsolver.combat import COMBINATION_VALUE, damage, damage_colour
 from nbsolver.effects import Effect, EffectKind, EffectMode
 from nbsolver.enums import AttackRange
-from nbsolver.missions import BattleMap, EnemyStats, Stage
+from nbsolver.missions import BattleMap, ConditionKind, EnemyStats, Stage
 from nbsolver.models import Jutsu, OwnedUnit, Unit
+from nbsolver.passives import Passive, parse_passive
 
 Position = tuple[float, float]
 
@@ -42,23 +45,36 @@ ATTACK_REACH = {
 }
 # A multi-target jutsu catches enemies this close to its main target.
 SPLASH = 2.5
+# How far an enemy closes in on its own turn.
+ENEMY_STEP = 1.5
+# Script-less enemies publish no rhythm; this is a guess at one.
+PLAIN_INTERVAL = 3
+# Hits per attack are not published; they decide when a combo passes 15. Results
+# barely moved between 1 and 7 on the validation stage, so the cautious 1 stays.
+ATTACK_HITS = 1
+# "Perimeter Barrier" ships with no description; on record it is a 2.5x attack.
+PERIMETER_BARRIER = 2.5
 # Long enough for any real clear; anything slower is treated as a loss.
 MAX_ACTIONS = 400
 
 UNVERIFIED = (
     "Movement and attack distances are estimates, not published values.",
-    "Enemies stay where they spawn; the game moves some of them.",
+    "Enemies close in 1.5 tiles on their own turn; the game's step is not published.",
+    "Enemies with no published script attack every 3 turns, alternating with their skill.",
     "Multi-target jutsu catch enemies near the main target; real shapes vary.",
-    "Support units add health and buddy chakra but are never switched in.",
     (
-        "Abilities unlocked by duplicates are not applied; field and buddy skills"
-        " apply only where their wording is understood."
+        "Field skills use the weakest end of their range, as if allies stood at the"
+        " edge of the circle."
+    ),
+    (
+        "Abilities count only as far as your box says they are unlocked; a friend's"
+        " helper is assumed to have none."
     ),
     (
         "Combination attacks join when an ally stands within its own attack range"
         " of the target; the game's exact joining rule is not published."
     ),
-    "Reaction branches and counter-attacks are not simulated.",
+    "A support switches in only when the unit in front of it is immobilised.",
 )
 
 TARGETS_RE = re.compile(r"(\d+)\s*enem", re.IGNORECASE)
@@ -71,6 +87,42 @@ HEAL_PERCENT_RE = re.compile(
     re.IGNORECASE,
 )
 BOOST_PERCENT_RE = re.compile(r"attack boost of (\d+)%", re.IGNORECASE)
+PERCENT_HIT_RE = re.compile(
+    r"deals?\s+(\d+(?:\.\d+)?)%\s+of\s+(?:the\s+)?(?:targeted\s+)?(?:enemy's|target's|their)\s+remaining health",
+    re.IGNORECASE,
+)
+SELF_COST_RE = re.compile(
+    r"depletes? your remaining health by (\d+(?:\.\d+)?)%", re.IGNORECASE
+)
+CHAKRA_GAIN_RE = re.compile(r"restores (?:your )?chakra gauge by (\d+)", re.IGNORECASE)
+SELF_AILMENT_RE = re.compile(
+    r"(?:gives|inflicts) you(?: with)? ([a-z ]+?)(?: \(tier (\d)\))? for (\d+) turn",
+    re.IGNORECASE,
+)
+SELF_AILMENTS = {
+    "slip damage": EffectKind.SLIP_DAMAGE,
+    "immobiliz": EffectKind.IMMOBILIZATION,
+    "jutsu seal": EffectKind.JUTSU_SEAL,
+    "attack reduc": EffectKind.ATTACK_REDUCTION,
+}
+
+
+def _self_ailments(text: str) -> list[Effect]:
+    found = []
+    for words, tier, turns in SELF_AILMENT_RE.findall(text):
+        for key, kind in SELF_AILMENTS.items():
+            if key in words.lower():
+                found.append(
+                    Effect(
+                        kind=kind,
+                        mode=EffectMode.INFLICT,
+                        duration=int(turns),
+                        tier=int(tier) if tier else 1,
+                        targets_caster=True,
+                        source=text,
+                    )
+                )
+    return found
 
 
 @dataclass
@@ -85,13 +137,30 @@ class Move:
     grants: list[Effect] = field(default_factory=list)
     heal_flat: float = 0.0
     heal_percent: float = 0.0
+    percent: float = 0.0
+    self_cost: float = 0.0
+    secret: bool = False
+    chakra_gain: float = 0.0
+    self_inflicts: list[Effect] = field(default_factory=list)
 
     @property
     def strikes(self) -> bool:
-        return self.multiplier > 0
+        return self.multiplier > 0 or self.percent > 0
+
+    @property
+    def boost(self) -> float:
+        """Attack boost percentage it gives its user, if any."""
+        return max(
+            (
+                e.magnitude or 0.0
+                for e in self.grants
+                if e.kind == EffectKind.ATTACK_BOOST
+            ),
+            default=0.0,
+        )
 
 
-def parse_move(jutsu: Jutsu | None) -> Move | None:
+def parse_move(jutsu: Jutsu | None, *, secret: bool = False) -> Move | None:
     if jutsu is None or jutsu.chakra is None:
         return None
     text = jutsu.description or ""
@@ -116,15 +185,25 @@ def parse_move(jutsu: Jutsu | None) -> Move | None:
         targets = int(found.group(1))
     flat = HEAL_FLAT_RE.search(text)
     percent = HEAL_PERCENT_RE.search(text)
+    share = PERCENT_HIT_RE.search(text)
+    cost = SELF_COST_RE.search(text)
+    gain = CHAKRA_GAIN_RE.search(text)
     return Move(
         name=jutsu.name,
         chakra=jutsu.chakra,
         multiplier=jutsu.multiplier or 0.0,
         targets=max(1, targets),
-        inflicts=[e for e in effects if e.mode is EffectMode.INFLICT],
+        inflicts=[
+            e for e in effects if e.mode is EffectMode.INFLICT and not e.targets_caster
+        ],
         grants=grants,
         heal_flat=float(flat.group(1).replace(",", "")) if flat else 0.0,
         heal_percent=float(percent.group(1)) if percent else 0.0,
+        percent=float(share.group(1)) if share else 0.0,
+        self_cost=float(cost.group(1)) if cost else 0.0,
+        secret=secret,
+        chakra_gain=float(gain.group(1)) if gain else 0.0,
+        self_inflicts=_self_ailments(text),
     )
 
 
@@ -137,18 +216,19 @@ class Member:
     level: int
     helper: bool = False
     copy: int | None = None
+    abilities: int = 0
 
-    @property
+    @cached_property
     def stats(self):
         return self.unit.stats_at(self.level)
 
-    @property
+    @cached_property
     def ninjutsu(self) -> Move | None:
         return parse_move(self.unit.ninjutsu)
 
-    @property
+    @cached_property
     def secret(self) -> Move | None:
-        return parse_move(self.unit.secret_technique)
+        return parse_move(self.unit.secret_technique, secret=True)
 
     @property
     def reach(self) -> float:
@@ -159,11 +239,37 @@ class Member:
         tag = " (helper)" if self.helper else ""
         return f"{self.unit.name} '{self.unit.title}'{tag}"
 
+    @cached_property
+    def own_passive(self) -> Passive:
+        total = Passive()
+        for ability in self.unit.abilities[: self.abilities]:
+            total.merge(parse_passive(ability.description))
+        return total
+
+    @cached_property
+    def field_passive(self) -> Passive:
+        skill = self.unit.field_skill
+        return parse_passive(skill.description) if skill else Passive()
+
+    @cached_property
+    def buddy_passive(self) -> Passive:
+        skill = self.unit.buddy_skill
+        return parse_passive(skill.description) if skill else Passive()
+
+    def speed(self) -> float:
+        return (self.stats.speed or self.unit.speed) + self.own_passive.speed
+
 
 def member_for(
     owned: OwnedUnit, unit: Unit, key: str, copy: int | None = None
 ) -> Member:
-    return Member(key=key, unit=unit, level=owned.level, copy=copy)
+    return Member(
+        key=key,
+        unit=unit,
+        level=owned.level,
+        copy=copy,
+        abilities=owned.unlocked_count(unit),
+    )
 
 
 def helper_member(unit: Unit, key: str = "helper") -> Member:
@@ -171,48 +277,69 @@ def helper_member(unit: Unit, key: str = "helper") -> Member:
     return Member(key=key, unit=unit, level=unit.max_level, helper=True)
 
 
+def _apply(fighter: Fighter, passive: Passive, *, element_bonus: bool = True) -> None:
+    fighter.flat_attack_boost += passive.flat_attack
+    if element_bonus:
+        fighter.flat_attack_boost += passive.element_attack.get(
+            str(fighter.element), 0.0
+        )
+    fighter.regen += passive.regen
+    fighter.counter_chance = min(100.0, fighter.counter_chance + passive.counter)
+    fighter.combo_boost *= passive.combo_boost
+    fighter.chakra_cut += passive.chakra_cut
+    fighter.ninjutsu_cut = passive.ninjutsu_cut or fighter.ninjutsu_cut
+    fighter.secret_cut = passive.secret_cut or fighter.secret_cut
+    fighter.chakra_on_hit = passive.chakra_on_hit or fighter.chakra_on_hit
+    for name in ("damage_vs", "reduce_from", "inflict_boost"):
+        mine = getattr(fighter, name)
+        for key, value in getattr(passive, name).items():
+            mine[key] = mine.get(key, 0.0) + value
+    for effect in passive.effects:
+        fighter.gain(effect.model_copy(update={"duration": None}))
+
+
 def _fighter(member: Member) -> Fighter:
     stats = member.stats
     ninjutsu = member.ninjutsu
-    return Fighter(
+    own = member.own_passive
+    health = stats.health + int(own.flat_health)
+    fighter = Fighter(
         key=member.key,
         name=member.label,
         side=Side.PLAYER,
         element=member.unit.element,
         attack=stats.attack,
-        max_health=stats.health,
-        health=stats.health,
+        max_health=health,
+        health=health,
         # Every unit enters a battle one bar short of its ninjutsu.
         chakra=max(0, (ninjutsu.chakra if ninjutsu else 1) - 1),
         attack_range=str(member.unit.range or AttackRange.SHORT),
         reach=member.reach,
+        hits=ATTACK_HITS,
     )
-
-
-def _supporting_effects(member: Member) -> list[Effect]:
-    """A support's buddy skill, as lasting effects on the unit it backs."""
-    skill = member.unit.buddy_skill
-    if skill is None:
-        return []
-    return [
-        e.model_copy(update={"duration": None})
-        for e in skill.effects.effects
-        if e.mode in (EffectMode.GRANT, EffectMode.RESIST)
-    ]
+    _apply(fighter, own, element_bonus=False)
+    return fighter
 
 
 def build_team(front: list[Member], back: list[Member | None]) -> Team:
-    members = [_fighter(m) for m in front]
+    fighters = [_fighter(m) for m in front]
     pairs = []
+    supports = []
     for index, partner in enumerate(back):
         if partner is None or index >= len(front):
             continue
-        fighter = _fighter(partner)
-        members.append(fighter)
+        support = _fighter(partner)
+        supports.append(support)
         pairs.append((front[index].key, partner.key))
-        for effect in _supporting_effects(partner):
-            members[index].gain(effect)
-    team = Team(members=members, pairs=pairs, on_field=[m.key for m in front])
+        _apply(fighters[index], partner.buddy_passive)
+    # Every front unit's field skill covers the whole front line.
+    for member in front:
+        passive = member.field_passive
+        for fighter in fighters:
+            _apply(fighter, passive)
+    team = Team(
+        members=[*fighters, *supports], pairs=pairs, on_field=[m.key for m in front]
+    )
     team.health = team.max_health
     return team
 
@@ -248,11 +375,15 @@ def _waves(battle_map: BattleMap, entries: list[EnemyStats]) -> list[list[EnemyS
     return [w for w in out if w]
 
 
-def _spawn(battle_map: BattleMap, wave: list[EnemyStats], prefix: str) -> list[Fighter]:
+def _spawn(
+    battle_map: BattleMap, wave: list[EnemyStats], prefix: str
+) -> tuple[list[Fighter], set[str]]:
+    """The wave's enemies on their spawn tiles, and which of them carry drops."""
     grid = battle_map.grid
     columns = grid.columns if grid and grid.columns else 7
     used: dict[int, int] = {}
     fighters = []
+    carriers = set()
     for stats in wave:
         for _ in range(max(1, stats.count)):
             tiles = (
@@ -270,10 +401,15 @@ def _spawn(battle_map: BattleMap, wave: list[EnemyStats], prefix: str) -> list[F
                 position = (float(k % columns), float(k // columns))
             key = f"{prefix}e{len(fighters) + 1}"
             fighter = enemy_fighter(stats, key, position)
-            fighter.attack_interval = 3
-            fighter.countdown = 3 if fighter.ai is None else None
+            for technique in fighter.techniques:
+                if technique.name == "Perimeter Barrier" and not technique.multiplier:
+                    technique.multiplier = PERIMETER_BARRIER
+            fighter.attack_interval = PLAIN_INTERVAL
+            fighter.countdown = PLAIN_INTERVAL if fighter.ai is None else None
             fighters.append(fighter)
-    return fighters
+            if stats.carries:
+                carriers.add(key)
+    return fighters, carriers
 
 
 def _bosses(fighters: list[Fighter], wave: list[EnemyStats]) -> set[str]:
@@ -305,15 +441,26 @@ class Run:
     reached_map: int
     sets_rolled: list[int]
     finished_by_jutsu: bool = False
+    finished_by_combination: bool = False
     ailments_taken: int = 0
+    drops_seen: int = 0
+    drops_taken: int = 0
     frames: list[Frame] = field(default_factory=list)
     roster: dict[str, dict] = field(default_factory=dict)
+
+    @property
+    def all_drops(self) -> bool:
+        return self.drops_taken >= self.drops_seen
 
 
 def _estimate(attacker: Fighter, target: Fighter, multiplier: float) -> int:
     reduction = sum(
-        e.magnitude or 0.0 for e in target.of_kind(EffectKind.DAMAGE_REDUCTION)
+        e.magnitude or 0.0
+        for e in target.of_kind(EffectKind.DAMAGE_REDUCTION)
+        if e.element is None or e.element == attacker.current_element
     )
+    reduction += target.reduce_from.get(str(attacker.current_element), 0.0)
+    favoured = 1 + attacker.damage_vs.get(str(target.current_element), 0.0) / 100
     return damage(
         attacker.attack,
         multiplier,
@@ -322,7 +469,7 @@ def _estimate(attacker: Fighter, target: Fighter, multiplier: float) -> int:
         flat_attack_boost=attacker.flat_attack_boost,
         attack_boost=attacker.attack_boost,
         attack_weakened=attacker.attack_weakened,
-        other_bonuses=attacker.other_bonuses,
+        other_bonuses=attacker.other_bonuses * favoured,
         damage_reduction=min(reduction, 100.0) / 100,
         defense=target.defense,
     )
@@ -361,12 +508,28 @@ def describe_move(start: Position, end: Position) -> str:
     return f"moves {tiles} {way}"
 
 
-def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order, str]:
-    """Pick the best affordable action, and say it the way a player would."""
+def _dealt(actor: Fighter, target: Fighter, move: Move | None) -> int:
+    if move is not None and move.percent:
+        return max(1, math.ceil(target.health * move.percent / 100))
+    return _estimate(actor, target, move.multiplier if move else 1.0)
+
+
+def decide(
+    state: BattleState,
+    member: Member,
+    bosses: set[str],
+    hold: set[str] | None = None,
+) -> tuple[Order, str]:
+    """Pick the best affordable action, and say it the way a player would.
+
+    `hold` lists enemies not to finish off yet, e.g. a boss whose defeat would
+    end the map before every drop has been collected.
+    """
     actor = state.team.member(member.key)
     living = state.living_enemies
     if actor is None or not living:
         return Order(fighter=member.key), "waits"
+    hold = hold or set()
 
     reach = MOVE_REACH + member.reach
     in_range = [e for e in living if math.dist(actor.position, e.position) <= reach]
@@ -390,12 +553,39 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
             order = Order(
                 fighter=member.key,
                 jutsu=True,
+                secret=move.secret,
                 chakra_cost=move.chakra,
                 heal=amount,
                 grants=move.grants,
                 label=move.name,
             )
             return order, f"uses {kind} {move.name} to heal the team"
+
+    # A power-up pays for itself when there is plenty left to hit and none is running.
+    boosted = actor.has(EffectKind.ATTACK_BOOST, EffectMode.GRANT)
+    remaining = sum(e.health for e in living)
+    for kind, move in options:
+        if (
+            move
+            and not move.strikes
+            and move.boost >= 50
+            and not boosted
+            and remaining > 3 * _estimate(actor, living[0], 1.0)
+        ):
+            order = Order(
+                fighter=member.key,
+                jutsu=True,
+                secret=move.secret,
+                chakra_cost=move.chakra,
+                grants=move.grants,
+                chakra_gain=move.chakra_gain,
+                self_inflicts=move.self_inflicts,
+                label=move.name,
+            )
+            return (
+                order,
+                f"uses {kind} {move.name} to power up (+{move.boost:g}% attack)",
+            )
 
     if not in_range:
         nearest = min(living, key=lambda e: math.dist(actor.position, e.position))
@@ -406,8 +596,7 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
     best: tuple[float, Order, str] | None = None
     for target in in_range:
         for kind, move in options:
-            multiplier = move.multiplier if move else 1.0
-            if multiplier <= 0:
+            if move is not None and not move.strikes:
                 continue
             splash: list[Fighter] = []
             if move and move.targets > 1:
@@ -415,34 +604,67 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
                     (e for e in living if e is not target),
                     key=lambda e: math.dist(e.position, target.position),
                 )
-                limit = move.targets - 1
                 splash = [
                     e
                     for e in others
                     if move.targets >= 99
                     or math.dist(e.position, target.position) <= SPLASH
-                ][:limit]
+                ][: move.targets - 1]
             value = 0.0
+            spoils = False
             for hit in [target, *splash]:
-                dealt = _estimate(actor, hit, multiplier)
+                dealt = _dealt(actor, hit, move)
                 value += min(dealt, hit.health) / max(1, hit.max_health)
                 if dealt >= hit.health:
+                    if hit.key in hold:
+                        spoils = True
                     value += 1.0 + _priority(hit, bosses)
+            if spoils:
+                continue
+            # Allies already in reach of this target will join in.
+            joiners = [
+                ally
+                for ally in state.team.fielded()
+                if ally is not actor
+                and ally.can_act
+                and ally.reach
+                and math.dist(ally.position, target.position) <= ally.reach
+            ]
+            for ally in joiners:
+                share = COMBINATION_VALUE.get(ally.attack_range, 0.0) * ally.combo_boost
+                value += min(_estimate(ally, target, share), target.health) / max(
+                    1, target.max_health
+                )
+            if ATTACK_HITS * (1 + len(joiners)) > state.rules.combo_hits_for_bonus:
+                value += 0.3
             value += 0.25 * _priority(target, bosses)
             # Chakra spent now is chakra not there for the boss.
             value -= 0.04 * (move.chakra if move else 0)
+            if move and move.self_cost:
+                value -= (
+                    move.self_cost
+                    / 100
+                    * state.team.health
+                    / max(1, state.team.max_health)
+                )
             if best is None or value > best[0]:
                 spot = _approach(actor.position, target.position, member.reach * 0.9)
                 order = Order(
                     fighter=member.key,
                     move_to=spot,
                     target=target.key,
-                    multiplier=multiplier,
+                    hits=ATTACK_HITS,
+                    multiplier=move.multiplier if move else 1.0,
+                    percent=move.percent if move else 0.0,
+                    self_cost=move.self_cost if move else 0.0,
                     jutsu=move is not None,
+                    secret=bool(move and move.secret),
                     chakra_cost=move.chakra if move else 0.0,
                     also=[e.key for e in splash],
                     inflicts=move.inflicts if move else [],
                     grants=move.grants if move else [],
+                    chakra_gain=move.chakra_gain if move else 0.0,
+                    self_inflicts=move.self_inflicts if move else [],
                     label=move.name if move else "",
                 )
                 what = f"{kind} {move.name}" if move else "a normal attack"
@@ -453,12 +675,21 @@ def decide(state: BattleState, member: Member, bosses: set[str]) -> tuple[Order,
                 )
                 said = f"{describe_move(actor.position, spot)} and uses {what} on"
                 best = (value, order, f"{said} {target.name}{extra} ({advantage})")
-    assert best is not None
+    if best is None:
+        nearest = min(living, key=lambda e: math.dist(actor.position, e.position))
+        return Order(
+            fighter=member.key
+        ), f"holds back to keep {nearest.name}'s drop in play"
     return best[1], best[2]
 
 
-def _speed_order(front: list[Member]) -> list[Member]:
-    return sorted(front, key=lambda m: -(m.stats.speed or m.unit.speed))
+def _swap_in(state: BattleState, key: str) -> str | None:
+    """Send the support in when the unit in front can't act anyway."""
+    fighter = state.team.member(key)
+    partner = state.team.buddy(key)
+    if fighter is None or partner is None or fighter.can_act or not partner.can_act:
+        return None
+    return partner.key if state.team.switch(key) else None
 
 
 def play_stage(
@@ -469,10 +700,11 @@ def play_stage(
     *,
     record: bool = False,
     forced_sets: list[int] | None = None,
+    objective: ConditionKind | None = None,
 ) -> Run:
     """One full attempt at the stage: every map in order, sharing one health pool."""
     team = build_team(front, back)
-    state = BattleState(team=team)
+    state = BattleState(team=team, rules=BattleRules(enemy_step=ENEMY_STEP))
     run = Run(
         won=False,
         turns=0,
@@ -481,6 +713,7 @@ def play_stage(
         reached_map=0,
         sets_rolled=[],
     )
+    members = {m.key: m for m in [*front, *(b for b in back if b)]}
     if record:
         run.roster = {
             m.key: {
@@ -489,9 +722,10 @@ def play_stage(
                 "level": m.level,
                 "front": m in front,
             }
-            for m in [*front, *(b for b in back if b)]
+            for m in members.values()
         }
     last_jutsu = False
+    last_combination = False
 
     for number, battle_map in enumerate(stage.maps, start=1):
         run.reached_map = number
@@ -502,13 +736,23 @@ def play_stage(
             chosen = rng.choices(range(len(weights)), weights=weights)[0]
         run.sets_rolled.append(chosen)
         entries = battle_map.sets[chosen].enemies if battle_map.sets else []
-        for key, spot in zip(team.on_field, _player_spots(battle_map, len(front))):
+        for key, spot in zip(
+            team.on_field, _player_spots(battle_map, len(team.on_field))
+        ):
             team.member(key).position = spot
+        if number > 1:
+            for key, member in members.items():
+                bonus = member.own_passive.map_chakra
+                if bonus:
+                    team.member(key).chakra += bonus
 
         waves = _waves(battle_map, entries)
         boss_rule = "boss" in (battle_map.clear or "").lower()
         for wave_number, wave in enumerate(waves, start=1):
-            state.enemies = _spawn(battle_map, wave, f"m{number}w{wave_number}")
+            state.enemies, carriers = _spawn(
+                battle_map, wave, f"m{number}w{wave_number}"
+            )
+            run.drops_seen += len(carriers)
             bosses = _bosses(state.enemies, wave)
             if record:
                 for e in state.enemies:
@@ -517,15 +761,39 @@ def play_stage(
                         "element": e.element,
                         "max_health": e.max_health,
                         "boss": e.key in bosses,
+                        "drop": e.key in carriers,
                         "enemy": True,
                     }
             while True:
-                for member in _speed_order(front):
+                order_now = sorted(team.on_field, key=lambda k: -members[k].speed())
+                for key in order_now:
                     if state.over or (boss_rule and bosses and _cleared(state, bosses)):
                         break
-                    order, said = decide(state, member, bosses)
+                    if key not in team.on_field:
+                        continue
+                    swapped = _swap_in(state, key)
+                    if swapped is not None:
+                        key = swapped
+                    member = members[key]
+                    hold = set()
+                    collecting = objective is ConditionKind.DROP_COMPLETE and boss_rule
+                    if collecting and any(
+                        not state.fighter(c).defeated for c in carriers
+                    ):
+                        hold = set(bosses)
+                    order, said = decide(state, member, bosses, hold)
+                    if swapped is not None:
+                        said = f"switches in for its partner, then {said}"
                     events = take_turn(state, order, rng)
-                    last_jutsu = order.jutsu and any(e.kind == "defeat" for e in events)
+                    defeated = {e.target for e in events if e.kind == "defeat"}
+                    last_jutsu = order.jutsu and bool(defeated)
+                    if defeated & bosses:
+                        hitters = {
+                            e.actor
+                            for e in events
+                            if e.kind == "damage" and e.target in bosses
+                        }
+                        last_combination = len(hitters) >= 3
                     run.ailments_taken += sum(
                         1
                         for e in events
@@ -546,12 +814,14 @@ def play_stage(
                     return run
                 if state.cleared or (boss_rule and bosses and _cleared(state, bosses)):
                     break
+            run.drops_taken += sum(1 for c in carriers if state.fighter(c).defeated)
             if boss_rule and bosses and _cleared(state, bosses):
                 break
     run.won = True
     run.turns = state.turn
     run.team_health = state.team.health
     run.finished_by_jutsu = last_jutsu
+    run.finished_by_combination = last_combination
     return run
 
 

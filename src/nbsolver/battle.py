@@ -9,7 +9,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from nbsolver.ai import ActionKind, AiAction, AiScript, AiState
+from nbsolver.ai import ActionKind, AiAction, AiScript, AiState, BranchKind
 from nbsolver.combat import (
     ATTACK_BOOST_RANKS,
     ATTACK_WEAKENED_RANKS,
@@ -41,6 +41,8 @@ class BattleRules(BaseModel):
     combo_hits_for_bonus: int = 15
     combo_chakra_bonus: float = 1.0
     knockback_distance: float = 1.0
+    # How far an enemy closes in before it acts; 0 keeps enemies where they spawn.
+    enemy_step: float = 0.0
 
 
 UNVERIFIED_RULES = ("knockback_distance",)
@@ -122,6 +124,19 @@ class Fighter(BaseModel):
     # Attack range by name, and how close it must stand to join a combination.
     attack_range: str = ""
     reach: float = 0.0
+    # How many times one of its attacks connects, which is what fills the combo count.
+    hits: int = 1
+    # Standing bonuses from abilities, field skills and buddy skills.
+    damage_vs: dict[str, float] = Field(default_factory=dict)
+    reduce_from: dict[str, float] = Field(default_factory=dict)
+    inflict_boost: dict[str, float] = Field(default_factory=dict)
+    combo_boost: float = 1.0
+    counter_chance: float = 0.0
+    regen: float = 0.0
+    chakra_cut: float = 0.0
+    ninjutsu_cut: tuple[float, float] | None = None
+    secret_cut: tuple[float, float] | None = None
+    chakra_on_hit: tuple[float, float] | None = None
 
     def technique(self, skill_id: int | None) -> Technique | None:
         if skill_id is None:
@@ -270,6 +285,15 @@ class Order(BaseModel):
     grants: list[Effect] = Field(default_factory=list)
     # Health the technique restores to the shared pool.
     heal: float = 0.0
+    # A share of each target's remaining health dealt outright, ignoring the formula.
+    percent: float = 0.0
+    # A share of the team's remaining health the technique costs its user.
+    self_cost: float = 0.0
+    # Chakra the technique hands straight back to its user.
+    chakra_gain: float = 0.0
+    # Ailments the technique lays on its own user, e.g. slip damage from a power-up.
+    self_inflicts: list[Effect] = Field(default_factory=list)
+    secret: bool = False
     label: str = ""
 
 
@@ -349,16 +373,35 @@ def _avoids(
         if _pierces(attacker, kind):
             continue
         if any(_rolls(e.chance, rng) for e in target.of_kind(kind, EffectMode.GRANT)):
+            if kind == EffectKind.PERFECT_DODGE:
+                _spend_perfect_dodge(target)
             return kind
     return None
+
+
+def _spend_perfect_dodge(target: Fighter) -> None:
+    """Perfect Dodge is a count of attacks, not a chance; each one used is gone."""
+    for entry in target.active:
+        effect = entry.effect
+        if effect.kind == EffectKind.PERFECT_DODGE and effect.mode is EffectMode.GRANT:
+            left = int(effect.magnitude or 1) - 1
+            if left <= 0:
+                target.active.remove(entry)
+            else:
+                entry.effect = effect.model_copy(update={"magnitude": float(left)})
+            return
 
 
 def _reduction(attacker: Fighter, target: Fighter) -> float:
     if _pierces(attacker, EffectKind.DAMAGE_REDUCTION):
         return 0.0
+    element = attacker.current_element
     percent = sum(
-        e.magnitude or 0.0 for e in target.of_kind(EffectKind.DAMAGE_REDUCTION)
+        e.magnitude or 0.0
+        for e in target.of_kind(EffectKind.DAMAGE_REDUCTION)
+        if e.element is None or e.element == element
     )
+    percent += target.reduce_from.get(str(element), 0.0)
     return min(percent, 100.0) / 100
 
 
@@ -465,7 +508,9 @@ def _apply_on_hit(
         if effect.kind == EffectKind.CHAKRA_DRAIN:
             target.chakra = max(0.0, target.chakra - (effect.magnitude or 1.0))
             continue
-        if not _rolls(effect.chance, rng) or _resists(target, effect.kind, rng):
+        if not _rolls(
+            effect.chance + attacker.inflict_boost.get(str(effect.kind), 0.0), rng
+        ) or _resists(target, effect.kind, rng):
             continue
         target.gain(effect)
         events.append(
@@ -489,6 +534,8 @@ def resolve_attack(
     *,
     jutsu: bool = False,
     effects: list[Effect] | None = None,
+    combination: bool = False,
+    counter: bool = False,
 ) -> list[Event]:
     avoided = _avoids(attacker, target, rng)
     if avoided is not None:
@@ -513,6 +560,9 @@ def resolve_attack(
         ]
 
     critical = _rolls(attacker.critical_rate, rng)
+    if combination:
+        multiplier *= attacker.combo_boost
+    favoured = 1 + attacker.damage_vs.get(str(target.current_element), 0.0) / 100
     landed = _take_damage(
         state,
         target,
@@ -524,7 +574,7 @@ def resolve_attack(
             flat_attack_boost=attacker.flat_attack_boost,
             attack_boost=attacker.attack_boost,
             attack_weakened=attacker.attack_weakened,
-            other_bonuses=attacker.other_bonuses,
+            other_bonuses=attacker.other_bonuses * favoured,
             critical=critical,
             nullify_reduction=attacker.has(
                 EffectKind.NULLIFY_ELEMENT_REDUCTION, EffectMode.GRANT
@@ -551,7 +601,58 @@ def resolve_attack(
     for steal in attacker.of_kind(EffectKind.LIFESTEAL, EffectMode.GRANT):
         events += _heal(state, attacker, landed * (steal.magnitude or 0.0) / 100)
     events += _apply_on_hit(state, attacker, target, rng, effects)
+    events += _after_hit(state, attacker, target, rng, jutsu=jutsu, counter=counter)
     return events
+
+
+def _after_hit(
+    state: BattleState,
+    attacker: Fighter,
+    target: Fighter,
+    rng: random.Random,
+    *,
+    jutsu: bool,
+    counter: bool,
+) -> list[Event]:
+    """Whatever being hit sets off: a counter, a chakra refund, a reaction."""
+    events: list[Event] = []
+    if target.side is Side.PLAYER and attacker.side is Side.ENEMY:
+        if target.chakra_on_hit and _rolls(target.chakra_on_hit[0], rng):
+            _give_chakra(state, target, target.chakra_on_hit[1])
+        if (
+            not counter
+            and target.counter_chance
+            and not attacker.defeated
+            and target.can_act
+            and _rolls(target.counter_chance, rng)
+        ):
+            for event in resolve_attack(
+                state, target, attacker, 1.0, rng, counter=True
+            ):
+                if event.kind == "damage":
+                    event.note = "counter" + (f", {event.note}" if event.note else "")
+                events.append(event)
+    elif target.side is Side.ENEMY and not target.defeated:
+        _react(target, attacker, jutsu)
+    return events
+
+
+def _react(enemy: Fighter, attacker: Fighter, jutsu: bool) -> None:
+    """A state waiting on a hit jumps when the right kind of hit arrives."""
+    if enemy.ai is None or enemy.ai_state is None:
+        return
+    node = enemy.ai.state(enemy.ai_state)
+    if node is None:
+        return
+    how = (
+        f"{'jutsu' if jutsu else 'normal attack'} by {attacker.current_element}".lower()
+    )
+    for branch in node.branches:
+        if branch.kind is BranchKind.REACTION and any(
+            how == wanted.lower() for wanted in branch.when_hit_by
+        ):
+            _enter(enemy, branch.state)
+            return
 
 
 def tick_slip_damage(state: BattleState, rng: random.Random) -> list[Event]:
@@ -599,7 +700,7 @@ def _act(
                 note=f"{order.move_to}",
             )
         )
-    supportive = order.jutsu and bool(order.heal or order.grants)
+    supportive = order.jutsu and bool(order.heal or order.grants or order.chakra_gain)
     if not order.target and not supportive:
         events.append(Event(turn=state.turn, kind="stall", actor=actor.key))
         return events, 0
@@ -607,7 +708,11 @@ def _act(
         if actor.has(EffectKind.JUTSU_SEAL, EffectMode.INFLICT):
             events.append(Event(turn=state.turn, kind="sealed", actor=actor.key))
             return events, 0
-        cost = order.chakra_cost * (1 - _chakra_discount(actor) / 100)
+        cost = order.chakra_cost
+        cut = actor.secret_cut if order.secret else actor.ninjutsu_cut
+        if cut and _rolls(cut[0], rng):
+            cost = min(cost, cut[1])
+        cost = max(0.0, cost - actor.chakra_cut) * (1 - _chakra_discount(actor) / 100)
         if actor.chakra < cost:
             events.append(Event(turn=state.turn, kind="no-chakra", actor=actor.key))
             return events, 0
@@ -619,7 +724,16 @@ def _act(
 
     landed: list[Event] = []
     target = state.fighter(order.target) if order.target else None
-    if target is not None and not target.defeated:
+    if target is not None and not target.defeated and order.percent:
+        for victim in [target, *(state.fighter(k) for k in order.also)]:
+            if (
+                victim is not None
+                and not victim.defeated
+                and victim.side is not actor.side
+            ):
+                landed += _percent_hit(state, actor, victim, order.percent)
+        combination_hits = 0
+    elif target is not None and not target.defeated:
         landed = resolve_attack(
             state,
             actor,
@@ -648,7 +762,11 @@ def _act(
         if any(e.kind == "damage" for e in landed) and not target.defeated:
             joined = _combination(state, actor, target, rng)
             landed += joined
-            combination_hits = sum(1 for e in joined if e.kind == "damage")
+            combination_hits = sum(
+                f.hits
+                for e in joined
+                if e.kind == "damage" and (f := state.fighter(e.actor)) is not None
+            )
         else:
             combination_hits = 0
     elif not supportive:
@@ -656,8 +774,35 @@ def _act(
     else:
         combination_hits = 0
     events += landed
+    if order.self_cost and state.team.health > 1:
+        lost = min(
+            state.team.health - 1, math.ceil(state.team.health * order.self_cost / 100)
+        )
+        state.team.health -= lost
+        events.append(
+            Event(
+                turn=state.turn,
+                kind="self-damage",
+                target=actor.key,
+                amount=lost,
+                note="technique cost",
+            )
+        )
     if order.heal:
         events += _heal(state, actor, order.heal)
+    if order.chakra_gain:
+        _give_chakra(state, actor, order.chakra_gain)
+    for effect in order.self_inflicts:
+        actor.gain(effect)
+        events.append(
+            Event(
+                turn=state.turn,
+                kind="effect",
+                actor=actor.key,
+                target=actor.key,
+                note=f"{effect.kind} (self)",
+            )
+        )
     for effect in order.grants:
         actor.gain(effect)
         events.append(
@@ -688,10 +833,33 @@ def _combination(
         share = COMBINATION_VALUE.get(ally.attack_range, 0.0)
         if share <= 0:
             continue
-        for event in resolve_attack(state, ally, target, share, rng):
+        for event in resolve_attack(state, ally, target, share, rng, combination=True):
             if event.kind == "damage":
                 event.note = "combination" + (f", {event.note}" if event.note else "")
             events.append(event)
+    return events
+
+
+def _percent_hit(
+    state: BattleState, actor: Fighter, target: Fighter, percent: float
+) -> list[Event]:
+    """Damage that is a share of what the target has left; element plays no part."""
+    landed = _take_damage(
+        state, target, max(1, math.ceil(target.health * percent / 100))
+    )
+    events = [
+        Event(
+            turn=state.turn,
+            kind="damage",
+            actor=actor.key,
+            target=target.key,
+            amount=landed,
+            colour=DamageColour.NEUTRAL,
+            note=f"{percent:g}% of remaining health",
+        )
+    ]
+    if target.defeated:
+        events.append(Event(turn=state.turn, kind="defeat", target=target.key))
     return events
 
 
@@ -831,6 +999,7 @@ def _scripted_turn(
     if enemy.countdown > 0:
         return []
 
+    _close_in(state, enemy)
     events = _fire(state, enemy, node, rng)
     chosen = node.roll(rng.random()) if node.odds else _branch(state, enemy, node)
     _enter(enemy, chosen if chosen is not None else enemy.ai_state or 0)
@@ -845,11 +1014,49 @@ def _plain_turn(state: BattleState, enemy: Fighter, rng: random.Random) -> list[
     if enemy.countdown > 0:
         return []
     enemy.countdown = enemy.attack_interval
+    _close_in(state, enemy)
     fielded = [m for m in state.team.fielded() if not m.defeated]
     if not fielded:
         return []
     target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
+    # With no script to say otherwise, a striking skill alternates with normal attacks.
+    skill = next((t for t in enemy.techniques if t.strikes), None)
+    attacks = enemy.skill_uses.get(-1, 0)
+    enemy.skill_uses[-1] = attacks + 1
+    if skill is not None and attacks % 2 == 1:
+        return resolve_attack(
+            state,
+            enemy,
+            target,
+            skill.multiplier,
+            rng,
+            jutsu=True,
+            effects=skill.effects,
+        )
     return resolve_attack(state, enemy, target, 1.0, rng)
+
+
+def _close_in(state: BattleState, enemy: Fighter) -> None:
+    """Walk toward the nearest player unit, stopping just short of it."""
+    step = state.rules.enemy_step
+    if step <= 0 or enemy.has(EffectKind.MOVEMENT_RESTRICTION, EffectMode.INFLICT):
+        return
+    fielded = [m for m in state.team.fielded() if not m.defeated]
+    if not fielded:
+        return
+    target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
+    span = math.dist(enemy.position, target.position)
+    travel = min(step, max(0.0, span - 1.0))
+    if span and travel:
+        ratio = travel / span
+        enemy.position = (
+            round(
+                enemy.position[0] + (target.position[0] - enemy.position[0]) * ratio, 2
+            ),
+            round(
+                enemy.position[1] + (target.position[1] - enemy.position[1]) * ratio, 2
+            ),
+        )
 
 
 def _enemy_phase(state: BattleState, rng: random.Random) -> list[Event]:
@@ -893,6 +1100,8 @@ def take_turn(
     # Only the unit that acted refills, and its buddy charges alongside it.
     actor = state.team.member(order.fighter)
     if actor is not None:
+        if actor.regen and not state.over:
+            events += _heal(state, actor, actor.regen)
         _give_chakra(state, actor, state.rules.chakra_per_turn)
         if (partner := state.team.buddy(actor.key)) is not None:
             _give_chakra(state, partner, state.rules.chakra_per_turn)

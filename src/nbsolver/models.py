@@ -103,8 +103,8 @@ class Unit(BaseModel):
 
     @property
     def in_revival(self) -> bool:
-        """Whether a Revival player can ever obtain this unit."""
-        return self.unit_id not in REBIRTH_ONLY_UNIT_IDS
+        """Whether a Revival player can ever obtain this unit (no 7-stars there)."""
+        return self.unit_id not in REBIRTH_ONLY_UNIT_IDS and self.rarity <= 6
 
     @property
     def min_cost(self) -> int:

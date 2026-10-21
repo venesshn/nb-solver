@@ -26,11 +26,7 @@ BACK_SLOTS = 4
 SHORTLIST = 10
 FINALISTS = 3
 # Conditions the simulator cannot judge yet; the report says so rather than guess.
-UNJUDGED = {
-    ConditionKind.COMBO_FINISH,
-    ConditionKind.DROP_COMPLETE,
-    ConditionKind.OTHER,
-}
+UNJUDGED = {ConditionKind.OTHER}
 
 
 @dataclass
@@ -42,6 +38,7 @@ class Choice:
     cost: int
     copy: int | None = None
     helper: bool = False
+    abilities: int = 0
 
     def member(self, key: str) -> Member:
         return Member(
@@ -50,6 +47,7 @@ class Choice:
             level=self.level,
             helper=self.helper,
             copy=self.copy,
+            abilities=self.abilities,
         )
 
 
@@ -154,7 +152,13 @@ def _choices(roster: Roster, catalogue: dict[int, Unit]) -> list[Choice]:
         if unit is None or not unit.in_revival:
             continue
         out.append(
-            Choice(unit=unit, level=owned.level, cost=owned.cost(unit), copy=index)
+            Choice(
+                unit=unit,
+                level=owned.level,
+                cost=owned.cost(unit),
+                copy=index,
+                abilities=owned.unlocked_count(unit),
+            )
         )
     return out
 
@@ -163,11 +167,10 @@ def pick_helper(
     catalogue: dict[int, Unit], stage: Stage, condition: ClearCondition | None
 ) -> Choice | None:
     elements = _enemy_elements(stage)
-    # 7-star entries exist in the data, but whether Revival has them is unconfirmed.
     pool = [
         Choice(unit=u, level=u.max_level, cost=0, helper=True)
         for u in catalogue.values()
-        if u.in_revival and u.rarity == 6 and u.levels and _allowed(u, condition)
+        if u.in_revival and u.rarity >= 6 and u.levels and _allowed(u, condition)
     ]
     return max(pool, key=lambda c: power(c, elements), default=None)
 
@@ -184,6 +187,10 @@ def _satisfied(run: Run, plan: Plan, condition: ClearCondition | None) -> bool:
         return run.finished_by_jutsu
     if kind == ConditionKind.NO_AILMENTS:
         return run.ailments_taken == 0
+    if kind == ConditionKind.COMBO_FINISH:
+        return run.finished_by_combination
+    if kind == ConditionKind.DROP_COMPLETE:
+        return run.all_drops
     if kind == ConditionKind.COST_CAP and condition.max_cost:
         return plan.cost <= condition.max_cost
     return True
@@ -210,11 +217,11 @@ def _legal(plan: Plan, limit: int, condition: ClearCondition | None) -> bool:
 def _fill_back(
     front: list[Choice], pool: list[Choice], budget: int, slots: int
 ) -> list[Choice]:
-    """Supports add health; take the sturdiest that still fit the cost limit."""
+    """Supports add their health to the shared pool; take the sturdiest that fit."""
     used = {c.unit.unit_id for c in front}
     spare = sorted(
         (c for c in pool if c.unit.unit_id not in used),
-        key=lambda c: -c.unit.stats_at(c.level).health / max(1, c.cost),
+        key=lambda c: -c.unit.stats_at(c.level).health,
     )
     back: list[Choice] = []
     for candidate in spare:
@@ -236,9 +243,14 @@ def _play(
     condition: ClearCondition | None,
 ) -> None:
     front, back = plan.members()
+    objective = condition.kind if condition else None
     for k in range(tries):
         run = play_stage(
-            stage, front, back, random.Random(seed * 7919 + len(plan.runs) + k)
+            stage,
+            front,
+            back,
+            random.Random(seed * 7919 + len(plan.runs) + k),
+            objective=objective,
         )
         plan.runs.append(run)
         plan.successes += _satisfied(run, plan, condition)
@@ -408,14 +420,24 @@ def solve(
 
     low, high = wilson(best.successes, best.tries)
     front, back = best.members()
+    objective = condition.kind if condition else None
     showcase = None
     for k in range(60):
-        run = play_stage(stage, front, back, random.Random(10_000 + k), record=True)
+        run = play_stage(
+            stage,
+            front,
+            back,
+            random.Random(10_000 + k),
+            record=True,
+            objective=objective,
+        )
         if _satisfied(run, best, condition):
             showcase = run
             break
     if showcase is None:
-        showcase = play_stage(stage, front, back, random.Random(10_000), record=True)
+        showcase = play_stage(
+            stage, front, back, random.Random(10_000), record=True, objective=objective
+        )
 
     report = {
         "status": "found" if best.successes else "not_found",

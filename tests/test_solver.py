@@ -133,6 +133,20 @@ def test_solver_finds_a_clear_for_the_example_box():
     assert report["showcase"]["frames"]
 
 
+def test_body_only_clear_the_player_confirmed_is_found():
+    """The player clears this stage with Body units only; the solver must find a way."""
+    roster = Roster.load(DATA / "rosters" / "example.json")
+    body_only = next(c for c in stage().conditions if c.element == Element.BODY)
+    report = solve(stage(), roster, units(), condition=body_only, tries=20)
+    assert report["status"] == "found" and report["likelihood"] > 0
+    picked = [
+        *report["team"]["front"],
+        *report["team"]["back"],
+        report["team"]["helper"],
+    ]
+    assert {c["element"] for c in picked if c} == {"Body"}
+
+
 def test_impossible_only_when_no_legal_team_exists():
     roster = Roster(units=[OwnedUnit(unit_id=11066, level=150)])
     wisdom_only = ClearCondition(

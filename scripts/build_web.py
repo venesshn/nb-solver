@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 from nbsolver.missions import MissionCatalogue
+from nbsolver.models import Unit
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,7 +48,13 @@ def build(out: Path) -> None:
     data = out / "data"
     (data / "missions").mkdir(parents=True, exist_ok=True)
 
-    units = json.loads((ROOT / "data" / "units.json").read_text(encoding="utf-8"))
+    units = [
+        row
+        for row in json.loads(
+            (ROOT / "data" / "units.json").read_text(encoding="utf-8")
+        )
+        if Unit.model_validate(row).in_revival
+    ]
     (data / "units.json").write_text(compact(units), encoding="utf-8")
 
     catalogue = MissionCatalogue.load(ROOT / "data" / "catalogue.json")
