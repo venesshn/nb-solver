@@ -160,7 +160,7 @@ def test_team_cost_limit():
 
 
 def test_round_trip(tmp_path: Path):
-    roster = Roster(player_id="REDACTED")
+    roster = Roster(player_id="123456789")
     roster.add(NARUTO, level=95, luck=40, dupes=2)
     path = tmp_path / "roster.json"
     roster.save(path)

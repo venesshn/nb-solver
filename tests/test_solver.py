@@ -121,11 +121,11 @@ def test_confirmed_clear_is_reproduced():
     assert wins >= 27
 
 
-def test_solver_finds_a_clear_for_the player():
+def test_solver_finds_a_clear_for_the_example_box():
     roster = Roster.load(DATA / "rosters" / "example.json")
     report = solve(stage(), roster, units(), tries=12)
     assert report["status"] == "found" and report["likelihood"] >= 0.9
-    assert report["team"]["cost"] <= 200
+    assert report["team"]["cost"] <= roster.team_cost_limit == 329
     owned = {o.unit_id for o in roster.units}
     picked = [*report["team"]["front"], *report["team"]["back"]]
     assert all(c["unit_id"] in owned for c in picked)

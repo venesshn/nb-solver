@@ -326,7 +326,7 @@ The user's recorded clear is **"The Evil Snake Shows its Fangs [B]"**, 20 stamin
   use it — and one of them is this one. Map 2 is 14 enemies, not 7. **Always
   expand by `count` when simulating.**
 
-### The confirmed team (player the player, Ninja Rank 89, ID REDACTED)
+### The confirmed team (the players own, recorded at Ninja Rank 89)
 
 | Unit | id | Element | Level | HP | ATK |
 |---|---|---|---|---|---|
