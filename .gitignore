@@ -23,3 +23,6 @@ extract_log.txt
 lint.txt
 test_log.txt
 *.log.txt
+
+# Game art: kept locally for the old icon matcher, never published
+data/portraits/*.webp
