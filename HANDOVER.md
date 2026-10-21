@@ -201,9 +201,13 @@ Rebirth-only units, excluded by `load_units(revival_only=True)`.
 - `data/portraits/*.webp` — **551 icons**, 128×128 RGBA, plus `index.json` = `{slug: icon}`
 - `data/rosters/example.json` — **only 5 units**; this is the product blocker
 - `data/cache/missions/*.json` (166), `data/cache/hideout/*.html` (166)
-- `data/analysis/box/*.png` — 165 stills from the recording
-- `data/analysis/pages/*.png` — **138 per-character detail pages**
+- `data/analysis/box/*.png` — 165 stills from recording **v1**
+- `data/analysis/pages/*.png` — **138 per-character detail pages** from v1
 - `data/analysis/box_reading.json` — output of `read_box.py`
+- `data/analysis/box_v1/`, `pages_v1/`, `box_reading_v1.json` — **frozen copies of
+  the v1 results**, kept because `box_scan.py` and `box_pages.py` both wipe their
+  output directories on every run. v1 is the only dataset whose reads the user has
+  confirmed, so it stays as the accuracy benchmark
 
 ---
 
@@ -358,6 +362,18 @@ viable) and **shows LEVEL but NOT abilities**. So only two things need reading p
 page: **which unit**, and **what level**. Cost, abilities, HP, ATK and element all
 come from `data/units.json` once the unit is identified.
 
+### The recordings
+
+| | v1 (processed) | **v2 (new, not yet processed)** |
+|---|---|---|
+| Path | consumed already | `C:\Users\venes\Downloads\621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy.mov` |
+| Resolution | 1180×2556 | **1180×2556 — identical, so the ICON and NAME boxes carry over unchanged** |
+| Frame rate | — | 60.03 fps |
+| Length | ~270 s | **238.8 s** (14,335 frames) |
+| Characters | 54 of 83 | unknown — the user was asked to cover all 83 |
+
+v2 opens cleanly in OpenCV (verified). **It has not been scanned yet.**
+
 ### The pipeline as built
 
 ```
@@ -366,6 +382,11 @@ screen recording
   -> box_pages.py  -> 138 per-character pages                  data/analysis/pages/
   -> read_box.py   -> 54 named characters + confidence         data/analysis/box_reading.json
 ```
+
+**Both `box_scan.py` and `box_pages.py` delete their output directory first.**
+Running them on v2 destroys the v1 stills and pages. v1 has been copied to
+`box_v1/`, `pages_v1/` and `box_reading_v1.json` — **do not delete those**, they
+are the benchmark the confirmed accuracy figures were measured on.
 
 `box_scan.py`: `SAMPLE_FPS=4.0`, `STILL=1.2`, `NOVEL=4.0`, `MAX_GAP_SECONDS=1.5`.
 Writes **full-resolution** frames; the 160×284 grey thumbnail is only used for
@@ -484,11 +505,17 @@ match at one known scale.**
 
 ### Then
 
-4. **Read the level.** Tesseract has already failed on this stylised font — do
+4. **Process recording v2** (path in the table above):
+   `python scripts/box_scan.py "C:\Users\venes\Downloads\621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy.mov"`
+   then `box_pages.py`, then `read_box.py`. Check how many characters it visits
+   and whether the count approaches 83. Compare against `box_reading_v1.json` —
+   **characters appearing in both recordings with consistent reads are strong
+   confirmations**, and that cross-check may rescue entries that were shaky in v1.
+5. **Read the level.** Tesseract has already failed on this stylised font — do
    **not** retry it. Cut digit templates from a few pages and match; levels are a
    small closed set (1–150).
-5. **Ask the user for a fuller recording** covering all 83 units. Recording advice
-   already given to them:
+6. **If v2 still falls short of 83**, ask for another pass. Recording advice
+   already given to the user:
    - Sort the box by the default order and don't change it mid-recording. **If the
      order is deterministic and nobody is skipped, the sequence itself carries
      identity information** — matching the run against known unit ordering could
@@ -499,7 +526,7 @@ match at one known scale.**
    - Don't scroll back or re-open anyone (creates phantom duplicates).
    - Set the 4★+ filter before starting and leave it alone.
    - One continuous recording ideally; if split, say where.
-6. **Write the real roster** to `data/rosters/example.json`, replacing the 5-unit
+7. **Write the real roster** to `data/rosters/example.json`, replacing the 5-unit
    placeholder. Keep cost / abilities / HP / ATK sourced from `data/units.json` by
    **`unit_id`** — units are keyed by unit_id, never by name or slug, because many
    units share a name.
@@ -562,8 +589,8 @@ match at one known scale.**
 
 **In progress**
 
-- Reading each page's **level**; verifying the icon box by eye; getting a
-  recording that covers all 83 units
+- Verifying the icon box by eye; **processing recording v2**; reading each page's
+  **level**
 
 **Not started**
 
@@ -573,5 +600,6 @@ match at one known scale.**
 
 **Open questions for the user**
 
-- Will they re-record the full 83 following the advice in §8?
+- Does recording v2 cover all 83 units, and did it follow the fixed-sort-order
+  advice? (Ask only if the processed count comes out short.)
 - Team cost limit: assumed 200 — needs confirming.
