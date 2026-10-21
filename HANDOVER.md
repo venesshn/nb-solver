@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **148 passing** (was 133 at `62a8dfc`) |
+| Tests | **pytest** — **191 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             14 files, 185 tests
+tests/             15 files, 191 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -690,7 +690,25 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   user-confirmed clears of e3003: Heart team 100%, Body-only ~25%** (tests).
 - **Website**: also an abilities-unlocked column and a mission-type filter;
   results note Ninja Road and missing-layout assumptions.
-- **185 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- **Bosses**: the map data marks bosses explicitly (`role` from the entry's
+  `boss` field); only those count when any are marked — e3003 map 3 now ends
+  when Orochimaru falls, not after every Sound Ninja. **Giant bosses** are
+  several same-named boss lines, one per part, each acting on its own
+  countdown with its own HP; **the first-listed line is the head, and beating
+  the head ends the giant** (user-confirmed; head = first line is inferred from
+  the data, e.g. Gamabunta 50k head + two 300k parts).
+- **Ninja Road** (user-confirmed rules): **3 teams of 6 from separate copies**,
+  each with its **own health bar** carried across the maps it fights; each map
+  goes to the team best placed (health × element matchup); **a beaten team is
+  out, the others carry on**. **Featured units** per road (2x HP/1.5x STR or
+  3x HP/2x STR) parsed from the Fandom "Extra Effects" table → 14 roads have
+  boosts; applied to owned units and helpers; advice mentions them.
+- **Every mission**: completing a map restores some health — the figure is
+  unpublished (hideoutgacha says so); **5% estimate**, plus "Restores N health
+  when moving to a new map" abilities. Percentage attacks stop at 1 HP.
+- Results now: e3003 Heart 100%, **Body-only ~94–97%**; NR #1 reaches map 15,
+  NR #10 map 19, later boosted roads fail early without featured units.
+- **191 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 
@@ -699,12 +717,12 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
 - Unpublished numbers stay estimates, listed in `UNVERIFIED` and on the site:
   movement/attack distances, enemy step, combination joining rule, script-less
   enemy rhythm (3), hits per attack (1; results insensitive 1–7).
-- Ninja Road is simulated as one team / one health pool over all maps, which
-  probably understates real odds; NR #1 comes out "No winning strategy found".
+- Ninja Road: the map-change restore (5%) and the team-to-map choice are
+  estimates; NR #1 still ends at map 15 in simulation.
 - Two calibration points (both e3003) can't prove accuracy everywhere.
-- GitHub may still serve pre-scrub commits to anyone holding their SHAs; full
-  removal needs the repo deleted and recreated (needs `delete_repo` scope).
+- The repo was deleted and recreated with the scrubbed history; old commit
+  SHAs verified gone (HTTP 422).
 
 **Open questions for the user**
 
-- Does Ninja Road let you change teams between maps / keep per-unit health?
+- How much health completing a map restores (a 5% estimate is in use).

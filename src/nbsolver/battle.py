@@ -843,10 +843,10 @@ def _combination(
 def _percent_hit(
     state: BattleState, actor: Fighter, target: Fighter, percent: float
 ) -> list[Event]:
-    """Damage that is a share of what the target has left; element plays no part."""
-    landed = _take_damage(
-        state, target, max(1, math.ceil(target.health * percent / 100))
-    )
+    """A share of what the target has left; element plays no part, and it can't
+    finish anyone off: it stops at 1 HP."""
+    share = min(math.ceil(target.health * percent / 100), target.health - 1)
+    landed = _take_damage(state, target, max(0, share))
     events = [
         Event(
             turn=state.turn,

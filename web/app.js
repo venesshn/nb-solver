@@ -339,8 +339,9 @@ $("solve").addEventListener("click", () => {
 });
 
 function unitCard(slot, c) {
+  const boost = c.boost ? ` · <span class="flag">featured ${c.boost[0]}× HP, ${c.boost[1]}× STR</span>` : "";
   return `<div class="unit"><div class="slot">${slot}</div><div class="name">${dot(c.element)}${escapeHtml(c.name)}</div>
-    <div class="title">${escapeHtml(c.title)} · ${c.rarity}★ · Lv ${c.level}${c.helper ? "" : ` · cost ${c.cost}`}</div></div>`;
+    <div class="title">${escapeHtml(c.title)} · ${c.rarity}★ · Lv ${c.level}${c.helper ? "" : ` · cost ${c.cost}`}${boost}</div></div>`;
 }
 
 function renderResult(report, mission, stage) {
@@ -360,11 +361,18 @@ function renderResult(report, mission, stage) {
   }
 
   const team = report.team;
-  $("team").innerHTML = team
-    ? `<div class="teams">${team.front.map((c) => unitCard("Front", c)).join("")}${team.helper ? unitCard("Helper", team.helper) : ""}${team.back
-        .map((c) => unitCard("Support", c))
-        .join("")}</div><p class="hint">Team cost ${team.cost} / ${team.cost_limit}.</p>`
-    : "";
+  const teamBlock = (t) =>
+    `<div class="teams">${t.front.map((c) => unitCard("Front", c)).join("")}${t.helper ? unitCard("Helper", t.helper) : ""}${t.back
+      .map((c) => unitCard("Support", c))
+      .join("")}</div><p class="hint">Team cost ${t.cost} / ${t.cost_limit}.</p>`;
+  if (report.teams && report.teams.length > 1) {
+    const plan = report.showcase?.teams_by_map;
+    $("team").innerHTML =
+      report.teams.map((t, i) => `<h3>Team ${i + 1}</h3>${teamBlock(t)}`).join("") +
+      (plan ? `<p class="hint">In the example run: ${plan.map((t, i) => `map ${i + 1} → Team ${t}`).join(", ")}.</p>` : "");
+  } else {
+    $("team").innerHTML = team ? teamBlock(team) : "";
+  }
 
   const showcase = report.showcase;
   $("playback").hidden = !showcase || !showcase.frames.length;

@@ -39,6 +39,7 @@ class Passive:
     flat_attack: float = 0.0
     flat_health: float = 0.0
     regen: float = 0.0
+    map_heal: float = 0.0
     counter: float = 0.0
     combo_boost: float = 1.0
     map_chakra: float = 0.0
@@ -61,6 +62,7 @@ class Passive:
         self.flat_attack += other.flat_attack
         self.flat_health += other.flat_health
         self.regen += other.regen
+        self.map_heal += other.map_heal
         self.counter = min(100.0, self.counter + other.counter)
         self.combo_boost *= other.combo_boost
         self.map_chakra += other.map_chakra
@@ -148,6 +150,8 @@ def parse_clause(clause: str) -> Passive:
         p.effects.append(
             _grant(EffectKind.DAMAGE_REDUCTION, magnitude=float(m.group(1)))
         )
+    elif m := hit(rf"restores {SPAN} health when moving to a new map"):
+        p.map_heal = float(m.group(1))
     elif m := hit(rf"restores {SPAN} health(?: every turn)?"):
         p.regen = float(m.group(1))
     elif "one bar of chakra when moving to a new map" in low:

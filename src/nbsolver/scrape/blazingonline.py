@@ -156,6 +156,8 @@ def _enemy(entry: dict[str, Any], foes: dict[str, Any]) -> EnemyStats:
         range=_range(range_text),
         range_text=range_text,
         is_boss=bool(entry.get("boss") or detail.get("boss")),
+        # The map entry itself says who the boss is; giant bosses list each part.
+        role=_text(entry.get("boss")),
         carries=_text(entry.get("carries")),
         skills=_skills(detail.get("sk"), raw.get("skillIds")),
         field_skill=_text(field.get("n")),

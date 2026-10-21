@@ -7,7 +7,7 @@ import re
 import httpx
 from bs4 import BeautifulSoup, Tag
 
-from nbsolver.missions import ClearCondition, Mission, Rank, Stage
+from nbsolver.missions import ClearCondition, Mission, Rank, Stage, UnitBoost
 from nbsolver.models import Element
 
 API = "https://naruto-blazing.fandom.com/api.php"
@@ -146,3 +146,94 @@ def parse_mission(page: str, html: str) -> Mission:
 
 def scrape_mission(page: str, client: httpx.Client | None = None) -> Mission:
     return parse_mission(page, fetch_page_html(page, client))
+
+
+UNIT_LINK_RE = re.compile(r'link=([^"|\]]+?)\s+"([^"]+)"\s*\(★(\d)\)')
+ROWSPAN_RE = re.compile(r'^\s*rowspan="(\d+)"\s*\|(.*)$', re.DOTALL)
+TIMES_RE = r"'*(\d+(?:\.\d+)?)x'*\s*{}"
+
+
+def fetch_wikitext(page: str, client: httpx.Client | None = None) -> str:
+    owned = client is None
+    client = client or httpx.Client(timeout=30, headers={"User-Agent": USER_AGENT})
+    try:
+        response = client.get(
+            API,
+            params={
+                "action": "parse",
+                "page": page,
+                "prop": "wikitext",
+                "format": "json",
+            },
+        )
+        response.raise_for_status()
+        return response.json()["parse"]["wikitext"]["*"]
+    finally:
+        if owned:
+            client.close()
+
+
+def _table_rows(section: str, columns: int) -> list[list[str]]:
+    """A wikitable's body rows with every rowspan filled in, so each row is complete."""
+    carried: list[tuple[str, int]] = [("", 0)] * columns
+    rows = []
+    for chunk in section.split("\n|-")[1:]:
+        lines = chunk.strip("\n").splitlines()
+        if any(line.startswith("!") for line in lines):
+            continue
+        cells = [
+            line[1:]
+            for line in lines
+            if line.startswith("|") and line[:2] not in ("|}", "|-")
+        ]
+        row = []
+        for column in range(columns):
+            text, left = carried[column]
+            if left > 0:
+                row.append(text)
+                carried[column] = (text, left - 1)
+                continue
+            if not cells:
+                row.append("")
+                continue
+            cell = cells.pop(0)
+            if found := ROWSPAN_RE.match(cell):
+                span, cell = int(found.group(1)), found.group(2)
+                carried[column] = (cell, span - 1)
+            row.append(cell)
+        rows.append(row)
+    return rows
+
+
+def parse_ninja_road_boosts(wikitext: str) -> dict[int, list[UnitBoost]]:
+    """Featured units per Ninja Road number, from the wiki's Extra Effects table.
+
+    Only health and strength multipliers matter to a battle; coin-only effects
+    are skipped. Every rarity of a featured unit gets the same multipliers.
+    """
+    start = wikitext.find("Extra Effects")
+    if start < 0:
+        return {}
+    section = wikitext[start : wikitext.find("|}", start)]
+    boosts: dict[int, list[UnitBoost]] = {}
+    for number, characters, effect in _table_rows(section, 3):
+        if not number.strip().isdigit():
+            continue
+        health = re.search(TIMES_RE.format("Health"), effect)
+        strength = re.search(TIMES_RE.format("Strength"), effect)
+        if not (health or strength):
+            continue
+        seen = set()
+        for name, title, _ in UNIT_LINK_RE.findall(characters):
+            if (name, title) in seen:
+                continue
+            seen.add((name, title))
+            boosts.setdefault(int(number), []).append(
+                UnitBoost(
+                    name=name.strip(),
+                    title=title.strip(),
+                    health=float(health.group(1)) if health else 1.0,
+                    attack=float(strength.group(1)) if strength else 1.0,
+                )
+            )
+    return boosts

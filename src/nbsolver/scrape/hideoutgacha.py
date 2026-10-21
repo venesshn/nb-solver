@@ -301,7 +301,7 @@ def merge_map(target: BattleMap, detail: MapDetail) -> bool:
         for offset, enemy in enumerate(group.enemies):
             extra = detail.enemies[start + offset]
             enemy.defense = extra.defense
-            enemy.role = extra.role
+            enemy.role = extra.role or enemy.role
             enemy.spawn_group = extra.spawn_group
     return True
 

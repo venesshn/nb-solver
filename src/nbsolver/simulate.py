@@ -25,7 +25,7 @@ from nbsolver.battle import (
     enemy_fighter,
     take_turn,
 )
-from nbsolver.combat import COMBINATION_VALUE, damage, damage_colour
+from nbsolver.combat import COMBINATION_VALUE, damage, damage_colour, element_multiplier
 from nbsolver.effects import Effect, EffectKind, EffectMode
 from nbsolver.enums import AttackRange
 from nbsolver.missions import BattleMap, ConditionKind, EnemyStats, Stage
@@ -54,6 +54,8 @@ PLAIN_INTERVAL = 3
 ATTACK_HITS = 1
 # "Perimeter Barrier" ships with no description; on record it is a 2.5x attack.
 PERIMETER_BARRIER = 2.5
+# Completing a map restores "a little" health; no source publishes how much.
+MAP_RESTORE = 0.05
 # Long enough for any real clear; anything slower is treated as a loss.
 MAX_ACTIONS = 400
 
@@ -75,6 +77,10 @@ UNVERIFIED = (
         " of the target; the game's exact joining rule is not published."
     ),
     "A support switches in only when the unit in front of it is immobilised.",
+    (
+        "Completing a map restores 5% of the team's health (plus any abilities that"
+        " add to it); the game's own figure is not published."
+    ),
 )
 
 TARGETS_RE = re.compile(r"(\d+)\s*enem", re.IGNORECASE)
@@ -217,6 +223,8 @@ class Member:
     helper: bool = False
     copy: int | None = None
     abilities: int = 0
+    health_x: float = 1.0
+    attack_x: float = 1.0
 
     @cached_property
     def stats(self):
@@ -302,13 +310,13 @@ def _fighter(member: Member) -> Fighter:
     stats = member.stats
     ninjutsu = member.ninjutsu
     own = member.own_passive
-    health = stats.health + int(own.flat_health)
+    health = round(stats.health * member.health_x) + int(own.flat_health)
     fighter = Fighter(
         key=member.key,
         name=member.label,
         side=Side.PLAYER,
         element=member.unit.element,
-        attack=stats.attack,
+        attack=round(stats.attack * member.attack_x),
         max_health=health,
         health=health,
         # Every unit enters a battle one bar short of its ninjutsu.
@@ -377,14 +385,17 @@ def _waves(battle_map: BattleMap, entries: list[EnemyStats]) -> list[list[EnemyS
 
 def _spawn(
     battle_map: BattleMap, wave: list[EnemyStats], prefix: str
-) -> tuple[list[Fighter], set[str]]:
-    """The wave's enemies on their spawn tiles, and which of them carry drops."""
+) -> tuple[list[Fighter], set[str], list[list[str]]]:
+    """The wave's enemies on their spawn tiles, which of them carry drops, and
+    which fighters each line of the wave became."""
     grid = battle_map.grid
     columns = grid.columns if grid and grid.columns else 7
     used: dict[int, int] = {}
     fighters = []
     carriers = set()
+    keys_by_entry: list[list[str]] = []
     for stats in wave:
+        keys_by_entry.append([])
         for _ in range(max(1, stats.count)):
             tiles = (
                 grid.tiles_for(stats.spawn_group) if grid and stats.spawn_group else []
@@ -407,14 +418,39 @@ def _spawn(
             fighter.attack_interval = PLAIN_INTERVAL
             fighter.countdown = PLAIN_INTERVAL if fighter.ai is None else None
             fighters.append(fighter)
+            keys_by_entry[-1].append(key)
             if stats.carries:
                 carriers.add(key)
-    return fighters, carriers
+    return fighters, carriers, keys_by_entry
 
 
-def _bosses(fighters: list[Fighter], wave: list[EnemyStats]) -> set[str]:
-    by_name = {s.name for s in wave if s.role == "Boss" or (not s.role and s.is_boss)}
-    return {f.key for f in fighters if f.name in by_name}
+def _boss_plan(
+    wave: list[EnemyStats], keys_by_entry: list[list[str]]
+) -> tuple[set[str], dict[str, list[str]]]:
+    """Who must fall to clear a boss map, and the parts each giant's head takes down.
+
+    The map data marks bosses explicitly; only when it marks none does any enemy
+    with a script count. A giant boss is listed as several same-named boss lines,
+    one per part, each acting on its own; the first is its head, and beating the
+    head finishes the whole giant (confirmed by the player).
+    """
+    marked = [i for i, s in enumerate(wave) if s.role == "Boss"]
+    if not marked:
+        marked = [i for i, s in enumerate(wave) if s.is_boss]
+    by_name: dict[str, list[int]] = {}
+    for i in marked:
+        by_name.setdefault(wave[i].name, []).append(i)
+    bosses: set[str] = set()
+    parts: dict[str, list[str]] = {}
+    for lines in by_name.values():
+        head = keys_by_entry[lines[0]]
+        bosses.update(head)
+        if len(lines) > 1 and all(wave[i].count <= 1 for i in lines):
+            parts[head[0]] = [k for i in lines[1:] for k in keys_by_entry[i]]
+        else:
+            for i in lines[1:]:
+                bosses.update(keys_by_entry[i])
+    return bosses, parts
 
 
 @dataclass
@@ -445,6 +481,8 @@ class Run:
     ailments_taken: int = 0
     drops_seen: int = 0
     drops_taken: int = 0
+    # Which team fought each map, when several teams share the road.
+    squad_maps: list[int] = field(default_factory=list)
     frames: list[Frame] = field(default_factory=list)
     roster: dict[str, dict] = field(default_factory=dict)
 
@@ -510,7 +548,10 @@ def describe_move(start: Position, end: Position) -> str:
 
 def _dealt(actor: Fighter, target: Fighter, move: Move | None) -> int:
     if move is not None and move.percent:
-        return max(1, math.ceil(target.health * move.percent / 100))
+        # A percentage attack stops at 1 HP, so it never finishes anyone.
+        return max(
+            0, min(math.ceil(target.health * move.percent / 100), target.health - 1)
+        )
     return _estimate(actor, target, move.multiplier if move else 1.0)
 
 
@@ -692,6 +733,181 @@ def _swap_in(state: BattleState, key: str) -> str | None:
     return partner.key if state.team.switch(key) else None
 
 
+@dataclass
+class Squad:
+    """One team and the battle state it carries from map to map."""
+
+    front: list[Member]
+    back: list[Member | None]
+    state: BattleState
+    members: dict[str, Member]
+    label: str = ""
+
+    @property
+    def health_share(self) -> float:
+        team = self.state.team
+        return team.health / team.max_health if team.max_health else 0.0
+
+    def matchup(self, battle_map: BattleMap) -> float:
+        """How well this team's front line hits the map's enemies, by element."""
+        enemies = [e for s in battle_map.sets[:1] for e in s.enemies]
+        total = sum(e.hp * max(1, e.count) for e in enemies) or 1
+        return (
+            sum(
+                e.hp
+                * max(1, e.count)
+                * sum(element_multiplier(m.unit.element, e.element) for m in self.front)
+                / max(1, len(self.front))
+                for e in enemies
+            )
+            / total
+        )
+
+
+def make_squad(
+    front: list[Member], back: list[Member | None], label: str = ""
+) -> Squad:
+    team = build_team(front, back)
+    state = BattleState(team=team, rules=BattleRules(enemy_step=ENEMY_STEP))
+    members = {m.key: m for m in [*front, *(b for b in back if b)]}
+    return Squad(front=front, back=back, state=state, members=members, label=label)
+
+
+def _new_run(squads: list[Squad], record: bool) -> Run:
+    run = Run(
+        won=False,
+        turns=0,
+        team_health=sum(s.state.team.health for s in squads),
+        max_health=sum(s.state.team.max_health for s in squads),
+        reached_map=0,
+        sets_rolled=[],
+    )
+    if record:
+        for squad in squads:
+            for m in squad.members.values():
+                run.roster[m.key] = {
+                    "name": m.label,
+                    "element": m.unit.element,
+                    "level": m.level,
+                    "front": m in squad.front,
+                    "team": squad.label,
+                }
+    return run
+
+
+def _play_map(
+    squad: Squad,
+    battle_map: BattleMap,
+    number: int,
+    run: Run,
+    rng: random.Random,
+    *,
+    record: bool,
+    forced_sets: list[int] | None,
+    objective: ConditionKind | None,
+    fresh: bool,
+) -> bool:
+    """Fight one map with one squad; False if the squad falls or runs out of time."""
+    state, team, members = squad.state, squad.state.team, squad.members
+    weights = [s.weight for s in battle_map.sets] or [1.0]
+    if forced_sets and len(forced_sets) >= number:
+        chosen = forced_sets[number - 1]
+    else:
+        chosen = rng.choices(range(len(weights)), weights=weights)[0]
+    run.sets_rolled.append(chosen)
+    entries = battle_map.sets[chosen].enemies if battle_map.sets else []
+    for key, spot in zip(team.on_field, _player_spots(battle_map, len(team.on_field))):
+        team.member(key).position = spot
+    if not fresh:
+        for key, member in members.items():
+            bonus = member.own_passive.map_chakra
+            if bonus:
+                team.member(key).chakra += bonus
+
+    waves = _waves(battle_map, entries)
+    boss_rule = "boss" in (battle_map.clear or "").lower()
+    for wave_number, wave in enumerate(waves, start=1):
+        state.enemies, carriers, keys_by_entry = _spawn(
+            battle_map, wave, f"m{number}w{wave_number}"
+        )
+        run.drops_seen += len(carriers)
+        bosses, parts = _boss_plan(wave, keys_by_entry)
+        if record:
+            for e in state.enemies:
+                run.roster[e.key] = {
+                    "name": e.name,
+                    "element": e.element,
+                    "max_health": e.max_health,
+                    "boss": e.key in bosses,
+                    "drop": e.key in carriers,
+                    "enemy": True,
+                }
+        while True:
+            order_now = sorted(team.on_field, key=lambda k: -members[k].speed())
+            for key in order_now:
+                if state.over or (boss_rule and bosses and _cleared(state, bosses)):
+                    break
+                if key not in team.on_field:
+                    continue
+                swapped = _swap_in(state, key)
+                if swapped is not None:
+                    key = swapped
+                member = members[key]
+                hold = set()
+                collecting = objective is ConditionKind.DROP_COMPLETE and boss_rule
+                if collecting and any(not state.fighter(c).defeated for c in carriers):
+                    hold = set(bosses)
+                order, said = decide(state, member, bosses, hold)
+                if swapped is not None:
+                    said = f"switches in for its partner, then {said}"
+                events = take_turn(state, order, rng)
+                defeated = {e.target for e in events if e.kind == "defeat"}
+                for head in defeated & parts.keys():
+                    for key in parts[head]:
+                        part = state.fighter(key)
+                        if part is not None and not part.defeated:
+                            part.health, part.defeated = 0, True
+                            events.append(
+                                Event(
+                                    turn=state.turn,
+                                    kind="defeat",
+                                    target=key,
+                                    note="head defeated",
+                                )
+                            )
+                run.finished_by_jutsu = order.jutsu and bool(defeated)
+                if defeated & bosses:
+                    hitters = {
+                        e.actor
+                        for e in events
+                        if e.kind == "damage" and e.target in bosses
+                    }
+                    run.finished_by_combination = len(hitters) >= 3
+                run.ailments_taken += sum(
+                    1
+                    for e in events
+                    if e.kind == "effect"
+                    and (f := state.fighter(e.target)) is not None
+                    and f.side is Side.PLAYER
+                    and e.actor != e.target
+                )
+                if record:
+                    frame = _frame(state, number, wave_number, member, said, events)
+                    if squad.label:
+                        frame.instruction = f"{squad.label} · {frame.instruction}"
+                    run.frames.append(frame)
+                if state.turn >= MAX_ACTIONS:
+                    break
+            if state.team.wiped or state.turn >= MAX_ACTIONS:
+                return False
+            if state.cleared or (boss_rule and bosses and _cleared(state, bosses)):
+                break
+        run.drops_taken += sum(1 for c in carriers if state.fighter(c).defeated)
+        if boss_rule and bosses and _cleared(state, bosses):
+            break
+    return True
+
+
 def play_stage(
     stage: Stage,
     front: list[Member],
@@ -703,126 +919,86 @@ def play_stage(
     objective: ConditionKind | None = None,
 ) -> Run:
     """One full attempt at the stage: every map in order, sharing one health pool."""
-    team = build_team(front, back)
-    state = BattleState(team=team, rules=BattleRules(enemy_step=ENEMY_STEP))
-    run = Run(
-        won=False,
-        turns=0,
-        team_health=team.health,
-        max_health=team.max_health,
-        reached_map=0,
-        sets_rolled=[],
+    return play_road(
+        stage,
+        [(front, back)],
+        rng,
+        record=record,
+        forced_sets=forced_sets,
+        objective=objective,
     )
-    members = {m.key: m for m in [*front, *(b for b in back if b)]}
-    if record:
-        run.roster = {
-            m.key: {
-                "name": m.label,
-                "element": m.unit.element,
-                "level": m.level,
-                "front": m in front,
-            }
-            for m in members.values()
-        }
-    last_jutsu = False
-    last_combination = False
 
+
+def play_road(
+    stage: Stage,
+    teams: list[tuple[list[Member], list[Member | None]]],
+    rng: random.Random,
+    *,
+    record: bool = False,
+    forced_sets: list[int] | None = None,
+    objective: ConditionKind | None = None,
+) -> Run:
+    """Every map in order. With several teams (Ninja Road), each keeps its own health
+    bar, and each map is fought by the team with the most health left."""
+    labels = [f"Team {i + 1}" if len(teams) > 1 else "" for i in range(len(teams))]
+    squads = [
+        make_squad(front, back, label) for (front, back), label in zip(teams, labels)
+    ]
+    run = _new_run(squads, record)
+    used: set[int] = set()
     for number, battle_map in enumerate(stage.maps, start=1):
         run.reached_map = number
-        weights = [s.weight for s in battle_map.sets] or [1.0]
-        if forced_sets and len(forced_sets) >= number:
-            chosen = forced_sets[number - 1]
-        else:
-            chosen = rng.choices(range(len(weights)), weights=weights)[0]
-        run.sets_rolled.append(chosen)
-        entries = battle_map.sets[chosen].enemies if battle_map.sets else []
-        for key, spot in zip(
-            team.on_field, _player_spots(battle_map, len(team.on_field))
-        ):
-            team.member(key).position = spot
-        if number > 1:
-            for key, member in members.items():
-                bonus = member.own_passive.map_chakra
-                if bonus:
-                    team.member(key).chakra += bonus
-
-        waves = _waves(battle_map, entries)
-        boss_rule = "boss" in (battle_map.clear or "").lower()
-        for wave_number, wave in enumerate(waves, start=1):
-            state.enemies, carriers = _spawn(
-                battle_map, wave, f"m{number}w{wave_number}"
+        while True:
+            standing = [i for i, s in enumerate(squads) if not s.state.team.wiped]
+            if not standing:
+                _close(run, squads)
+                return run
+            # The team with health to spare and the better element matchup goes in.
+            pick = max(
+                standing,
+                key=lambda i: (
+                    squads[i].health_share * squads[i].matchup(battle_map) ** 2
+                ),
             )
-            run.drops_seen += len(carriers)
-            bosses = _bosses(state.enemies, wave)
-            if record:
-                for e in state.enemies:
-                    run.roster[e.key] = {
-                        "name": e.name,
-                        "element": e.element,
-                        "max_health": e.max_health,
-                        "boss": e.key in bosses,
-                        "drop": e.key in carriers,
-                        "enemy": True,
-                    }
-            while True:
-                order_now = sorted(team.on_field, key=lambda k: -members[k].speed())
-                for key in order_now:
-                    if state.over or (boss_rule and bosses and _cleared(state, bosses)):
-                        break
-                    if key not in team.on_field:
-                        continue
-                    swapped = _swap_in(state, key)
-                    if swapped is not None:
-                        key = swapped
-                    member = members[key]
-                    hold = set()
-                    collecting = objective is ConditionKind.DROP_COMPLETE and boss_rule
-                    if collecting and any(
-                        not state.fighter(c).defeated for c in carriers
-                    ):
-                        hold = set(bosses)
-                    order, said = decide(state, member, bosses, hold)
-                    if swapped is not None:
-                        said = f"switches in for its partner, then {said}"
-                    events = take_turn(state, order, rng)
-                    defeated = {e.target for e in events if e.kind == "defeat"}
-                    last_jutsu = order.jutsu and bool(defeated)
-                    if defeated & bosses:
-                        hitters = {
-                            e.actor
-                            for e in events
-                            if e.kind == "damage" and e.target in bosses
-                        }
-                        last_combination = len(hitters) >= 3
-                    run.ailments_taken += sum(
-                        1
-                        for e in events
-                        if e.kind == "effect"
-                        and (f := state.fighter(e.target)) is not None
-                        and f.side is Side.PLAYER
-                        and e.actor != e.target
-                    )
-                    if record:
-                        run.frames.append(
-                            _frame(state, number, wave_number, member, said, events)
-                        )
-                    if state.turn >= MAX_ACTIONS:
-                        break
-                if state.team.wiped or state.turn >= MAX_ACTIONS:
-                    run.turns = state.turn
-                    run.team_health = state.team.health
-                    return run
-                if state.cleared or (boss_rule and bosses and _cleared(state, bosses)):
-                    break
-            run.drops_taken += sum(1 for c in carriers if state.fighter(c).defeated)
-            if boss_rule and bosses and _cleared(state, bosses):
+            run.squad_maps.append(pick)
+            cleared = _play_map(
+                squads[pick],
+                battle_map,
+                number,
+                run,
+                rng,
+                record=record,
+                forced_sets=forced_sets,
+                objective=objective,
+                fresh=pick not in used,
+            )
+            used.add(pick)
+            if cleared:
+                _restore(squads[pick])
                 break
+            # A beaten team is out; the next one takes the map from the start.
+            if not squads[pick].state.team.wiped:
+                _close(run, squads)
+                return run
     run.won = True
-    run.turns = state.turn
-    run.team_health = state.team.health
-    run.finished_by_jutsu = last_jutsu
-    run.finished_by_combination = last_combination
+    _close(run, squads)
     return run
+
+
+def _restore(squad: Squad) -> None:
+    """The health a team gets back for completing a map."""
+    team = squad.state.team
+    if team.wiped:
+        return
+    gain = team.max_health * MAP_RESTORE + sum(
+        m.own_passive.map_heal for m in squad.members.values()
+    )
+    team.health = min(team.max_health, team.health + round(gain))
+
+
+def _close(run: Run, squads: list[Squad]) -> None:
+    run.turns = sum(s.state.turn for s in squads)
+    run.team_health = sum(s.state.team.health for s in squads)
 
 
 def _cleared(state: BattleState, bosses: set[str]) -> bool:

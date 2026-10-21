@@ -10,6 +10,8 @@ from nbsolver.roster import Roster
 from nbsolver.solver import solve
 
 _units: dict[int, Unit] = {}
+# Confirmed by the player: three teams, each with its own health bar.
+NINJA_ROAD_TEAMS = 3
 
 
 def load_units(text: str) -> int:
@@ -55,6 +57,8 @@ def solve_json(
         helper=helping,
         tries=tries,
         progress=report,
+        teams=NINJA_ROAD_TEAMS if mission.mode == "ninja_road" else 1,
+        boosts=mission.unit_boosts,
     )
     result["mission"] = {
         "slug": mission.slug,
@@ -64,9 +68,16 @@ def solve_json(
     notes = []
     if mission.mode == "ninja_road":
         notes.append(
-            "Ninja Road is played here as one team with one health pool across every"
-            " map; if the game lets you change teams between maps, real odds are better."
+            "Ninja Road uses three separate teams, each keeping its own health bar"
+            " across the maps it fights; each map goes to the team best placed for"
+            " it, and a beaten team is out while the others carry on."
         )
+        if mission.unit_boosts:
+            featured = ", ".join(
+                f"{b.name} '{b.title}' ({b.health:g}x health, {b.attack:g}x strength)"
+                for b in mission.unit_boosts
+            )
+            notes.append(f"Featured units on this road: {featured}.")
     if any(m.grid is None or not m.grid.columns for m in stage.maps):
         notes.append(
             "No battlefield layout is published for this mission, so a generic one is"

@@ -14,10 +14,10 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 
 from nbsolver.combat import element_multiplier
-from nbsolver.missions import ClearCondition, ConditionKind, Stage
+from nbsolver.missions import ClearCondition, ConditionKind, Stage, UnitBoost
 from nbsolver.models import OwnedUnit, Unit
 from nbsolver.roster import Roster
-from nbsolver.simulate import UNVERIFIED, Member, Run, play_stage
+from nbsolver.simulate import UNVERIFIED, Member, Run, play_road, play_stage
 
 IMPOSSIBLE = "Not possible to complete - keep grinding!"
 NOT_FOUND = "No winning strategy found."
@@ -39,6 +39,9 @@ class Choice:
     copy: int | None = None
     helper: bool = False
     abilities: int = 0
+    # Multipliers a mission grants this unit, e.g. Ninja Road's featured units.
+    health_x: float = 1.0
+    attack_x: float = 1.0
 
     def member(self, key: str) -> Member:
         return Member(
@@ -48,6 +51,8 @@ class Choice:
             helper=self.helper,
             copy=self.copy,
             abilities=self.abilities,
+            health_x=self.health_x,
+            attack_x=self.attack_x,
         )
 
 
@@ -71,14 +76,42 @@ class Plan:
     def cost(self) -> int:
         return sum(c.cost for c in [*self.front, *self.back])
 
-    def members(self) -> tuple[list[Member], list[Member | None]]:
-        front = [c.member(f"p{i + 1}") for i, c in enumerate(self.front)]
+    def members(self, prefix: str = "") -> tuple[list[Member], list[Member | None]]:
+        front = [c.member(f"{prefix}p{i + 1}") for i, c in enumerate(self.front)]
         if self.helper is not None:
-            front.append(self.helper.member("helper"))
+            front.append(self.helper.member(f"{prefix}helper"))
         back: list[Member | None] = [
-            c.member(f"s{i + 1}") for i, c in enumerate(self.back)
+            c.member(f"{prefix}s{i + 1}") for i, c in enumerate(self.back)
         ]
         return front, back
+
+    @property
+    def copies(self) -> set[int]:
+        return {c.copy for c in [*self.front, *self.back] if c.copy is not None}
+
+
+@dataclass
+class Road:
+    """Several teams sharing one mission, each with its own health bar."""
+
+    plans: list[Plan]
+    runs: list[Run] = field(default_factory=list)
+    successes: int = 0
+
+    @property
+    def tries(self) -> int:
+        return len(self.runs)
+
+    @property
+    def rate(self) -> float:
+        return self.successes / self.tries if self.tries else 0.0
+
+    @property
+    def cost(self) -> int:
+        return max(p.cost for p in self.plans)
+
+    def lineup(self):
+        return [p.members(f"t{i + 1}") for i, p in enumerate(self.plans)]
 
 
 def wilson(successes: int, tries: int, z: float = 1.96) -> tuple[float, float]:
@@ -142,33 +175,57 @@ def power(choice: Choice, elements: dict) -> float:
         if choice.unit.ninjutsu and choice.unit.ninjutsu.multiplier
         else 1.0
     )
-    return stats.attack * affinity * (1 + 0.35 * jutsu) + 0.3 * stats.health
+    return (
+        stats.attack * choice.attack_x * affinity * (1 + 0.35 * jutsu)
+        + 0.3 * stats.health * choice.health_x
+    )
 
 
-def _choices(roster: Roster, catalogue: dict[int, Unit]) -> list[Choice]:
+Boosts = dict[tuple[str, str], tuple[float, float]]
+
+
+def boost_table(boosts: list[UnitBoost] | None) -> Boosts:
+    return {(b.name, b.title): (b.health, b.attack) for b in boosts or []}
+
+
+def _boosted(choice: Choice, boosts: Boosts) -> Choice:
+    health, attack = boosts.get((choice.unit.name, choice.unit.title), (1.0, 1.0))
+    choice.health_x, choice.attack_x = health, attack
+    return choice
+
+
+def _choices(
+    roster: Roster, catalogue: dict[int, Unit], boosts: Boosts | None = None
+) -> list[Choice]:
     out = []
     for index, owned in enumerate(roster.units):
         unit = catalogue.get(owned.unit_id)
         if unit is None or not unit.in_revival:
             continue
         out.append(
-            Choice(
-                unit=unit,
-                level=owned.level,
-                cost=owned.cost(unit),
-                copy=index,
-                abilities=owned.unlocked_count(unit),
+            _boosted(
+                Choice(
+                    unit=unit,
+                    level=owned.level,
+                    cost=owned.cost(unit),
+                    copy=index,
+                    abilities=owned.unlocked_count(unit),
+                ),
+                boosts or {},
             )
         )
     return out
 
 
 def pick_helper(
-    catalogue: dict[int, Unit], stage: Stage, condition: ClearCondition | None
+    catalogue: dict[int, Unit],
+    stage: Stage,
+    condition: ClearCondition | None,
+    boosts: Boosts | None = None,
 ) -> Choice | None:
     elements = _enemy_elements(stage)
     pool = [
-        Choice(unit=u, level=u.max_level, cost=0, helper=True)
+        _boosted(Choice(unit=u, level=u.max_level, cost=0, helper=True), boosts or {})
         for u in catalogue.values()
         if u.in_revival and u.rarity >= 6 and u.levels and _allowed(u, condition)
     ]
@@ -313,6 +370,11 @@ def _describe(choice: Choice) -> dict:
         "level": choice.level,
         "cost": choice.cost,
         "helper": choice.helper,
+        "boost": (
+            [choice.health_x, choice.attack_x]
+            if (choice.health_x, choice.attack_x) != (1.0, 1.0)
+            else None
+        ),
     }
 
 
@@ -368,14 +430,21 @@ def solve(
     tries: int = 40,
     seed: int = 1,
     progress=None,
+    teams: int = 1,
+    boosts: list[UnitBoost] | None = None,
 ) -> dict:
-    """The whole answer the site shows for one stage and one player."""
+    """The whole answer the site shows for one stage and one player.
+
+    `teams` above 1 is Ninja Road: that many separate teams, each with its own
+    health bar, share the maps. `boosts` are the units the mission favours.
+    """
+    table = boost_table(boosts)
     if condition is not None and condition.kind in UNJUDGED:
         return {
             "status": "unsupported",
             "message": f"The objective '{condition.description}' can't be checked by the simulator yet.",
         }
-    choices = _choices(roster, catalogue)
+    choices = _choices(roster, catalogue, table)
     eligible = [c for c in choices if _allowed(c.unit, condition)]
     if not eligible:
         return {
@@ -383,17 +452,19 @@ def solve(
             "message": IMPOSSIBLE,
             "reason": "You own no unit this objective allows.",
             "recommendations": recommend(
-                stage, roster, catalogue, condition, None, tries, seed
+                stage, roster, catalogue, condition, None, tries, seed, table, teams
             ),
         }
 
     helper_choice: Choice | None = None
     if helper == "auto":
-        helper_choice = pick_helper(catalogue, stage, condition)
+        helper_choice = pick_helper(catalogue, stage, condition, table)
     elif isinstance(helper, int) and helper in catalogue:
         unit = catalogue[helper]
         if _allowed(unit, condition):
-            helper_choice = Choice(unit=unit, level=unit.max_level, cost=0, helper=True)
+            helper_choice = _boosted(
+                Choice(unit=unit, level=unit.max_level, cost=0, helper=True), table
+            )
 
     plans = shortlist(choices, helper_choice, stage, roster.team_cost_limit, condition)
     if not plans:
@@ -402,56 +473,66 @@ def solve(
             "message": IMPOSSIBLE,
             "reason": "No team you own fits the cost limit and this objective together.",
             "recommendations": recommend(
-                stage, roster, catalogue, condition, helper_choice, tries, seed
+                stage,
+                roster,
+                catalogue,
+                condition,
+                helper_choice,
+                tries,
+                seed,
+                table,
+                teams,
             ),
         }
 
     contenders = plans[: max(FINALISTS * 3, 6)]
-    for n, plan in enumerate(contenders):
-        _play(plan, stage, max(6, tries // 4), seed, condition)
-        if progress:
-            progress(n + 1, len(contenders) + FINALISTS)
-    finalists = sorted(contenders, key=lambda p: (-p.rate, _mean_turns(p)))[:FINALISTS]
-    for n, plan in enumerate(finalists):
-        _play(plan, stage, tries, seed + 1, condition)
-        if progress:
-            progress(len(contenders) + n + 1, len(contenders) + FINALISTS)
-    best = max(finalists, key=lambda p: (p.rate, -_mean_turns(p)))
+    if teams > 1:
+        best = _best_road(
+            choices,
+            helper_choice,
+            stage,
+            roster.team_cost_limit,
+            condition,
+            teams,
+            plans,
+            tries,
+            seed,
+            progress,
+        )
+    else:
+        for n, plan in enumerate(contenders):
+            _play(plan, stage, max(6, tries // 4), seed, condition)
+            if progress:
+                progress(n + 1, len(contenders) + FINALISTS)
+        finalists = sorted(contenders, key=lambda p: (-p.rate, _mean_turns(p)))[
+            :FINALISTS
+        ]
+        for n, plan in enumerate(finalists):
+            _play(plan, stage, tries, seed + 1, condition)
+            if progress:
+                progress(len(contenders) + n + 1, len(contenders) + FINALISTS)
+        best = max(finalists, key=lambda p: (p.rate, -_mean_turns(p)))
 
     low, high = wilson(best.successes, best.tries)
-    front, back = best.members()
     objective = condition.kind if condition else None
     showcase = None
     for k in range(60):
-        run = play_stage(
-            stage,
-            front,
-            back,
-            random.Random(10_000 + k),
-            record=True,
-            objective=objective,
-        )
+        run = _attempt(best, stage, random.Random(10_000 + k), objective, record=True)
         if _satisfied(run, best, condition):
             showcase = run
             break
     if showcase is None:
-        showcase = play_stage(
-            stage, front, back, random.Random(10_000), record=True, objective=objective
-        )
+        showcase = _attempt(best, stage, random.Random(10_000), objective, record=True)
 
+    lineup = best.plans if isinstance(best, Road) else [best]
     report = {
         "status": "found" if best.successes else "not_found",
         "message": None if best.successes else NOT_FOUND,
         "likelihood": round(best.rate, 3),
         "interval": [round(low, 3), round(high, 3)],
         "tries": best.tries,
-        "team": {
-            "front": [_describe(c) for c in best.front],
-            "helper": _describe(best.helper) if best.helper else None,
-            "back": [_describe(c) for c in best.back],
-            "cost": best.cost,
-            "cost_limit": roster.team_cost_limit,
-        },
+        "team": _team(lineup[0], roster),
+        "teams": [_team(p, roster) for p in lineup] if len(lineup) > 1 else None,
         "median_turns": _median([r.turns for r in best.runs if r.won]),
         "depends_on": _depends_on(best, stage, condition),
         "showcase": {
@@ -460,14 +541,85 @@ def solve(
             "max_health": showcase.max_health,
             "roster": showcase.roster,
             "frames": _instructions(showcase),
+            "teams_by_map": [i + 1 for i in showcase.squad_maps]
+            if len(lineup) > 1
+            else None,
         },
         "assumptions": list(UNVERIFIED),
     }
     if not best.successes:
         report["recommendations"] = recommend(
-            stage, roster, catalogue, condition, helper_choice, tries, seed
+            stage,
+            roster,
+            catalogue,
+            condition,
+            helper_choice,
+            tries,
+            seed,
+            table,
+            teams,
         )
     return report
+
+
+def _team(plan: Plan, roster: Roster) -> dict:
+    return {
+        "front": [_describe(c) for c in plan.front],
+        "helper": _describe(plan.helper) if plan.helper else None,
+        "back": [_describe(c) for c in plan.back],
+        "cost": plan.cost,
+        "cost_limit": roster.team_cost_limit,
+    }
+
+
+def _attempt(
+    best: Plan | Road,
+    stage: Stage,
+    rng: random.Random,
+    objective: ConditionKind | None,
+    *,
+    record: bool = False,
+) -> Run:
+    if isinstance(best, Road):
+        return play_road(stage, best.lineup(), rng, record=record, objective=objective)
+    front, back = best.members()
+    return play_stage(stage, front, back, rng, record=record, objective=objective)
+
+
+def _best_road(
+    choices: list[Choice],
+    helper: Choice | None,
+    stage: Stage,
+    limit: int,
+    condition: ClearCondition | None,
+    teams: int,
+    leads: list[Plan],
+    tries: int,
+    seed: int,
+    progress,
+) -> Road:
+    """Separate teams from separate copies: a few leads, each filled out greedily."""
+    roads = []
+    for lead in leads[:FINALISTS]:
+        chosen = [Plan(front=lead.front, back=lead.back, helper=lead.helper)]
+        used = set(lead.copies)
+        while len(chosen) < teams:
+            rest = [c for c in choices if c.copy not in used]
+            following = shortlist(rest, helper, stage, limit, condition)
+            if not following:
+                break
+            chosen.append(following[0])
+            used |= following[0].copies
+        roads.append(Road(plans=chosen))
+    objective = condition.kind if condition else None
+    for n, road in enumerate(roads):
+        for k in range(tries):
+            run = _attempt(road, stage, random.Random(seed * 7919 + k), objective)
+            road.runs.append(run)
+            road.successes += _satisfied(run, road, condition)
+        if progress:
+            progress(n + 1, len(roads))
+    return max(roads, key=lambda r: (r.rate, -_mean_turns(r)))
 
 
 def _median(values: list[int]) -> float | None:
@@ -495,10 +647,18 @@ def recommend(
     helper: Choice | None,
     tries: int,
     seed: int,
+    table: Boosts | None = None,
+    teams: int = 1,
 ) -> list[dict]:
     """The least grinding that would turn this into a clear, cheapest first."""
+    table = table or {}
     elements = _enemy_elements(stage)
     ideas: list[tuple[int, str, Roster]] = []
+
+    def strength(unit: Unit) -> float:
+        return power(
+            _boosted(Choice(unit=unit, level=unit.max_level, cost=0), table), elements
+        )
 
     # Levelling something already owned is the least grinding there is.
     under = [
@@ -508,9 +668,7 @@ def recommend(
         and _allowed(catalogue[o.unit_id], condition)
         and o.level < catalogue[o.unit_id].max_level
     ]
-    under.sort(
-        key=lambda t: -power(Choice(unit=t[2], level=t[2].max_level, cost=0), elements)
-    )
+    under.sort(key=lambda t: -strength(t[2]))
     for index, owned, unit in under[:3]:
         changed = roster.model_copy(deep=True)
         changed.units[index].level = unit.max_level
@@ -533,34 +691,47 @@ def recommend(
             and u.unit_id not in owned_ids
             and _allowed(u, condition)
         ),
-        key=lambda u: -power(Choice(unit=u, level=u.max_level, cost=0), elements),
+        key=lambda u: -strength(u),
     )
     for unit in wanted[:3]:
         changed = roster.model_copy(deep=True)
         changed.units.append(OwnedUnit(unit_id=unit.unit_id, level=unit.max_level))
-        ideas.append(
-            (
-                2,
-                f"Get {unit.name} '{unit.title}' ({unit.rarity}★, {unit.element}) and level it to {unit.max_level}",
-                changed,
-            )
+        featured = table.get((unit.name, unit.title))
+        note = (
+            f", featured here: {featured[0]:g}x health, {featured[1]:g}x strength"
+            if featured
+            else ""
         )
+        step = (
+            f"Get {unit.name} '{unit.title}' ({unit.rarity}★, {unit.element}{note})"
+            f" and level it to {unit.max_level}"
+        )
+        ideas.append((2, step, changed))
 
     results = []
     for effort, text, changed in ideas:
-        plans = shortlist(
-            _choices(changed, catalogue),
-            helper,
-            stage,
-            changed.team_cost_limit,
-            condition,
-        )
+        choices = _choices(changed, catalogue, table)
+        plans = shortlist(choices, helper, stage, changed.team_cost_limit, condition)
         if not plans:
             continue
-        plan = plans[0]
-        _play(plan, stage, max(6, tries // 3), seed + 3, condition)
+        if teams > 1:
+            trial = _best_road(
+                choices,
+                helper,
+                stage,
+                changed.team_cost_limit,
+                condition,
+                teams,
+                plans,
+                max(6, tries // 3),
+                seed + 3,
+                None,
+            )
+        else:
+            trial = plans[0]
+            _play(trial, stage, max(6, tries // 3), seed + 3, condition)
         results.append(
-            {"step": text, "effort": effort, "likelihood": round(plan.rate, 3)}
+            {"step": text, "effort": effort, "likelihood": round(trial.rate, 3)}
         )
     results.sort(key=lambda r: (r["likelihood"] < 0.5, r["effort"], -r["likelihood"]))
     return results

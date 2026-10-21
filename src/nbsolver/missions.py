@@ -245,6 +245,15 @@ class Stage(BaseModel):
         return any(m.is_random for m in self.maps)
 
 
+class UnitBoost(BaseModel):
+    """A unit this mission favours, e.g. Ninja Road's '3x Health and 2x Strength'."""
+
+    name: str
+    title: str
+    health: float = 1.0
+    attack: float = 1.0
+
+
 class Mission(BaseModel):
     slug: str
     name: str
@@ -252,6 +261,7 @@ class Mission(BaseModel):
     stages: list[Stage] = Field(default_factory=list)
     # Where the numbers came from, since CC BY-SA requires attribution.
     sources: list[str] = Field(default_factory=list)
+    unit_boosts: list[UnitBoost] = Field(default_factory=list)
 
     def stage(self, name: str) -> Stage | None:
         target = name.casefold()
