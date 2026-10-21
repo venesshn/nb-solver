@@ -101,6 +101,8 @@ class EnemySkill(BaseModel):
     description: str = ""
     range: str = ""
     targets: str = ""
+    # The id the AI script calls this skill by. Names are not unique.
+    skill_id: int | None = None
 
     @cached_property
     def effects(self) -> EffectSet:
@@ -156,6 +158,11 @@ class EnemyStats(BaseModel):
     def ai(self) -> AiScript:
         """Its state machine: countdowns, jutsu choices and the branches between."""
         return parse_script(self.ai_states)
+
+    def skill(self, skill_id: int | None) -> EnemySkill | None:
+        if skill_id is None:
+            return None
+        return next((s for s in self.skills if s.skill_id == skill_id), None)
 
 
 class WaveSpawn(BaseModel):

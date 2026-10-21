@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from nbsolver.ai import ActionKind, AiAction, AiScript, AiState
 from nbsolver.combat import (
     ATTACK_BOOST_RANKS,
     ATTACK_WEAKENED_RANKS,
@@ -19,8 +21,9 @@ from nbsolver.combat import (
     rank_value,
     slip_damage,
 )
-from nbsolver.effects import Effect, EffectKind, EffectMode
+from nbsolver.effects import Effect, EffectKind, EffectMode, attack_multiplier
 from nbsolver.enums import Element
+from nbsolver.missions import EnemySkill, EnemyStats
 
 # Blazing moves units freely inside a radius rather than between grid squares,
 # so a position is a point and every distance below is in those same units.
@@ -70,6 +73,25 @@ class ActiveEffect(BaseModel):
             self.turns_left -= 1
 
 
+class Technique(BaseModel):
+    """One of an enemy's skills, as its AI script refers to it."""
+
+    skill_id: int | None = None
+    name: str = ""
+    multiplier: float = 0.0
+    heals: float = 0.0
+    effects: list[Effect] = Field(default_factory=list)
+
+    @property
+    def strikes(self) -> bool:
+        """A pure buff or heal has no attack multiplier to hit anyone with."""
+        return self.multiplier > 0
+
+    @property
+    def inflicts(self) -> bool:
+        return any(e.mode is EffectMode.INFLICT for e in self.effects)
+
+
 class Fighter(BaseModel):
     key: str
     name: str = ""
@@ -87,10 +109,24 @@ class Fighter(BaseModel):
     # The number the game prints on an enemy portrait: turns until it attacks.
     countdown: int | None = None
     attack_interval: int | None = None
+    # The published state machine, and where in it this enemy currently stands.
+    ai: AiScript | None = None
+    ai_state: int | None = None
+    techniques: list[Technique] = Field(default_factory=list)
+    skill_uses: dict[int, int] = Field(default_factory=dict)
     # What this fighter applies when it lands a hit.
     on_hit: list[Effect] = Field(default_factory=list)
     active: list[ActiveEffect] = Field(default_factory=list)
     defeated: bool = False
+
+    def technique(self, skill_id: int | None) -> Technique | None:
+        if skill_id is None:
+            return None
+        return next((t for t in self.techniques if t.skill_id == skill_id), None)
+
+    @property
+    def health_fraction(self) -> float:
+        return self.health / self.max_health if self.max_health else 1.0
 
     def of_kind(self, kind: EffectKind, mode: EffectMode | None = None) -> list[Effect]:
         return [
@@ -249,6 +285,37 @@ class BattleState(BaseModel):
         return self.cleared or self.team.wiped
 
 
+HEAL_RE = re.compile(r"restores\s+([\d,]+)\s*HP", re.IGNORECASE)
+
+
+def _technique(skill: EnemySkill) -> Technique:
+    healed = HEAL_RE.search(skill.description or "")
+    return Technique(
+        skill_id=skill.skill_id,
+        name=skill.name,
+        multiplier=attack_multiplier(skill.description) or 0.0,
+        heals=float(healed.group(1).replace(",", "")) if healed else 0.0,
+        effects=skill.effects.effects,
+    )
+
+
+def enemy_fighter(stats: EnemyStats, key: str, position: Position) -> Fighter:
+    """Put one of the catalogue's enemies on the field, script and all."""
+    return Fighter(
+        key=key,
+        name=stats.name,
+        side=Side.ENEMY,
+        element=stats.element,
+        attack=stats.attack,
+        defense=stats.defense,
+        max_health=stats.hp,
+        health=stats.hp,
+        position=position,
+        ai=stats.ai if stats.ai.states else None,
+        techniques=[_technique(s) for s in stats.skills],
+    )
+
+
 def _rolls(chance: float, rng: random.Random) -> bool:
     return chance >= 100.0 or rng.uniform(0, 100) < chance
 
@@ -345,9 +412,10 @@ def _apply_on_hit(
     attacker: Fighter,
     target: Fighter,
     rng: random.Random,
+    extra: list[Effect] | None = None,
 ) -> list[Event]:
     events: list[Event] = []
-    for effect in attacker.on_hit:
+    for effect in [*attacker.on_hit, *(extra or [])]:
         if effect.mode is not EffectMode.INFLICT:
             continue
         if effect.kind == EffectKind.REMOVE_BARRIER:
@@ -407,6 +475,7 @@ def resolve_attack(
     rng: random.Random,
     *,
     jutsu: bool = False,
+    effects: list[Effect] | None = None,
 ) -> list[Event]:
     avoided = _avoids(attacker, target, rng)
     if avoided is not None:
@@ -468,7 +537,7 @@ def resolve_attack(
 
     for steal in attacker.of_kind(EffectKind.LIFESTEAL, EffectMode.GRANT):
         events += _heal(state, attacker, landed * (steal.magnitude or 0.0) / 100)
-    events += _apply_on_hit(state, attacker, target, rng)
+    events += _apply_on_hit(state, attacker, target, rng, effects)
     return events
 
 
@@ -547,21 +616,170 @@ def _chakra_discount(fighter: Fighter) -> float:
     )
 
 
+# A chain of Switch states that never settles would otherwise spin forever.
+MAX_SWITCHES = 16
+
+
+def _branch(state: BattleState, enemy: Fighter, node: AiState) -> int | None:
+    """Where this state sends the enemy next, once it has played out."""
+    if enemy.ai is None:
+        return None
+    return enemy.ai.next_state(
+        node, health_fraction=enemy.health_fraction, turn=state.turn
+    )
+
+
+def _enter(enemy: Fighter, number: int) -> None:
+    enemy.ai_state = number
+    node = enemy.ai.state(number) if enemy.ai else None
+    enemy.countdown = node.countdown if node else None
+
+
+def _settle(state: BattleState, enemy: Fighter, rng: random.Random) -> AiState | None:
+    """Switch states choose and hand straight on; they do not cost a turn."""
+    for _ in range(MAX_SWITCHES):
+        if enemy.ai is None or enemy.ai_state is None:
+            return None
+        node = enemy.ai.state(enemy.ai_state)
+        if node is None or node.acts:
+            return node
+        chosen = node.roll(rng.random()) if node.odds else _branch(state, enemy, node)
+        # A truncated or purely reactive branch list leaves it stuck here.
+        if chosen is None or chosen == enemy.ai_state:
+            return node
+        _enter(enemy, chosen)
+    return enemy.ai.state(enemy.ai_state) if enemy.ai else None
+
+
+def _ai_target(state: BattleState, enemy: Fighter, action: AiAction) -> Fighter | None:
+    fielded = [m for m in state.team.fielded() if not m.defeated]
+    if not fielded:
+        return None
+
+    def distance(member: Fighter) -> float:
+        return math.dist(member.position, enemy.position)
+
+    target = action.target
+    if target.startswith(("FarTarget", "MaxRange")):
+        return max(fielded, key=distance)
+    if found := re.search(r"\((\w+) ninja first\)", target):
+        wanted = found.group(1).lower()
+        matching = [m for m in fielded if m.current_element.lower() == wanted]
+        if matching:
+            return min(matching, key=distance)
+    return min(fielded, key=distance)
+
+
+def _self_cast(state: BattleState, enemy: Fighter, technique: Technique) -> list[Event]:
+    events: list[Event] = []
+    if technique.heals:
+        events += _heal(state, enemy, technique.heals)
+    for effect in technique.effects:
+        if effect.mode is EffectMode.GRANT:
+            enemy.gain(effect)
+            events.append(
+                Event(
+                    turn=state.turn,
+                    kind="effect",
+                    actor=enemy.key,
+                    target=enemy.key,
+                    note=effect.kind,
+                )
+            )
+    return events
+
+
+def _fire(
+    state: BattleState, enemy: Fighter, node: AiState, rng: random.Random
+) -> list[Event]:
+    events: list[Event] = []
+    for action in node.actions:
+        if not action.acts:
+            continue
+        technique = enemy.technique(action.skill_id)
+        if action.skill_id is not None and action.max_uses is not None:
+            spent = enemy.skill_uses.get(action.skill_id, 0)
+            if spent >= action.max_uses:
+                continue
+            enemy.skill_uses[action.skill_id] = spent + 1
+
+        if technique is not None and not technique.strikes:
+            # No multiplier, so it either lands an ailment or buffs the caster.
+            if technique.inflicts:
+                victim = _ai_target(state, enemy, action)
+                if victim is not None:
+                    events += _apply_on_hit(
+                        state, enemy, victim, rng, technique.effects
+                    )
+            else:
+                events += _self_cast(state, enemy, technique)
+            continue
+
+        target = _ai_target(state, enemy, action)
+        if target is None:
+            break
+        multiplier = technique.multiplier if technique else 1.0
+        events += resolve_attack(
+            state,
+            enemy,
+            target,
+            multiplier,
+            rng,
+            jutsu=action.kind is ActionKind.SKILL,
+            effects=technique.effects if technique else None,
+        )
+        if state.over:
+            break
+    return events
+
+
+def _scripted_turn(
+    state: BattleState, enemy: Fighter, rng: random.Random
+) -> list[Event]:
+    node = _settle(state, enemy, rng)
+    if node is None:
+        return []
+    if enemy.countdown is None:
+        enemy.countdown = node.countdown
+    if enemy.countdown > 0:
+        enemy.countdown -= 1
+    if enemy.countdown > 0:
+        return []
+
+    events = _fire(state, enemy, node, rng)
+    chosen = node.roll(rng.random()) if node.odds else _branch(state, enemy, node)
+    _enter(enemy, chosen if chosen is not None else enemy.ai_state or 0)
+    return events
+
+
+def _plain_turn(state: BattleState, enemy: Fighter, rng: random.Random) -> list[Event]:
+    """Fallback for enemies whose script was never published."""
+    if enemy.countdown is None:
+        return []
+    enemy.countdown -= 1
+    if enemy.countdown > 0:
+        return []
+    enemy.countdown = enemy.attack_interval
+    fielded = [m for m in state.team.fielded() if not m.defeated]
+    if not fielded:
+        return []
+    target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
+    return resolve_attack(state, enemy, target, 1.0, rng)
+
+
 def _enemy_phase(state: BattleState, rng: random.Random) -> list[Event]:
-    """Enemies strike when their printed countdown runs out, then it resets."""
+    """Each enemy follows its own script, or its printed countdown if it has none."""
     events: list[Event] = []
     for enemy in state.living_enemies:
-        if enemy.countdown is None or not enemy.can_act:
+        if not enemy.can_act:
             continue
-        enemy.countdown -= 1
-        if enemy.countdown > 0:
-            continue
-        enemy.countdown = enemy.attack_interval
-        fielded = [m for m in state.team.fielded() if not m.defeated]
-        if not fielded:
-            continue
-        target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
-        events += resolve_attack(state, enemy, target, 1.0, rng)
+        if enemy.ai is not None and enemy.ai.states:
+            if enemy.ai_state is None:
+                start = enemy.ai.start
+                _enter(enemy, start.number if start else 0)
+            events += _scripted_turn(state, enemy, rng)
+        else:
+            events += _plain_turn(state, enemy, rng)
         if state.over:
             break
     return events

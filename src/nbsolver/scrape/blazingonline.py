@@ -114,7 +114,11 @@ def _conditions(raw: list[dict[str, Any]] | None) -> list[ClearCondition]:
     return conditions
 
 
-def _skills(raw: list[dict[str, Any]] | None) -> list[EnemySkill]:
+def _skills(
+    raw: list[dict[str, Any]] | None, ids: list[Any] | None = None
+) -> list[EnemySkill]:
+    # `skillIds` runs parallel to the skill list, and is how the AI names them.
+    numbers = [int(i) for i in ids or [] if str(i).isdigit()]
     return [
         EnemySkill(
             slot=_text(skill.get("slot")),
@@ -122,8 +126,9 @@ def _skills(raw: list[dict[str, Any]] | None) -> list[EnemySkill]:
             description=_text(skill.get("d")),
             range=_text(skill.get("rng")),
             targets=_text(skill.get("tgt")),
+            skill_id=numbers[index] if index < len(numbers) else None,
         )
-        for skill in raw or []
+        for index, skill in enumerate(raw or [])
     ]
 
 
@@ -146,7 +151,7 @@ def _enemy(entry: dict[str, Any], foes: dict[str, Any]) -> EnemyStats:
         range_text=range_text,
         is_boss=bool(entry.get("boss") or detail.get("boss")),
         carries=_text(entry.get("carries")),
-        skills=_skills(detail.get("sk")),
+        skills=_skills(detail.get("sk"), raw.get("skillIds")),
         field_skill=_text(field.get("n")),
         field_skill_description=_text(field.get("d")),
         defences=sorted(
