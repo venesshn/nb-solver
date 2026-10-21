@@ -4,7 +4,9 @@ The player opens each character in turn, so the stills come in runs: several
 near-identical frames while a page is open, then a jump to the next character.
 Keeping the sharpest frame of each run gives one picture per unit.
 
-    python scripts/box_pages.py
+    python scripts/box_pages.py [in_dir out_dir]
+
+out_dir is deleted and recreated.
 """
 
 import shutil
@@ -34,8 +36,8 @@ def sharpness(frame: np.ndarray) -> float:
     return float(cv2.Laplacian(grey, cv2.CV_64F).var())
 
 
-def group() -> list[list[Path]]:
-    stills = sorted(IN_DIR.glob("*.png"))
+def group(in_dir: Path = IN_DIR) -> list[list[Path]]:
+    stills = sorted(in_dir.glob("*.png"))
     runs: list[list[Path]] = []
     current: list[Path] = []
     previous: np.ndarray | None = None
@@ -51,17 +53,17 @@ def group() -> list[list[Path]]:
     return runs
 
 
-def main() -> None:
-    if OUT_DIR.exists():
-        shutil.rmtree(OUT_DIR)
-    OUT_DIR.mkdir(parents=True)
+def main(in_dir: Path = IN_DIR, out_dir: Path = OUT_DIR) -> None:
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
 
-    runs = group()
+    runs = group(in_dir)
     print(f"{sum(len(r) for r in runs)} stills -> {len(runs)} pages", flush=True)
     for number, run in enumerate(runs):
         best = max(run, key=lambda p: sharpness(cv2.imread(str(p))))
-        shutil.copy(best, OUT_DIR / f"page_{number:03d}_{best.stem}.png")
-    print(f"wrote {len(runs)} pages to {OUT_DIR}", flush=True)
+        shutil.copy(best, out_dir / f"page_{number:03d}_{best.stem}.png")
+    print(f"wrote {len(runs)} pages to {out_dir}", flush=True)
     sizes = [len(r) for r in runs]
     print(
         f"frames per page: min {min(sizes)} median {int(np.median(sizes))} max {max(sizes)}",
@@ -70,4 +72,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3:
+        main(Path(sys.argv[1]), Path(sys.argv[2]))
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        raise SystemExit(__doc__)

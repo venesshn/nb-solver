@@ -26,9 +26,12 @@ PAGES = ROOT / "data" / "analysis" / "pages"
 PORTRAITS = ROOT / "data" / "portraits"
 OUT = ROOT / "data" / "analysis" / "box_reading.json"
 
-# Both boxes were found by stacking the pages and looking for what varies.
+# Found by stacking the pages and looking for what varies; checked by eye since.
 ICON = (79, 1740, 157)
 NAME = (170, 500, 740, 670)
+# The "Level 100/100" plaque, and within it the current/max value text.
+LEVEL_PLAQUE = (320, 1680, 725, 1762)
+LEVEL_VALUE = (480, 1700, 700, 1740)
 SIDE = 24
 SAME_NAME = 0.90
 # Below this the runner-up is too close to call; sampling showed these are
@@ -93,13 +96,14 @@ def visits(names: np.ndarray) -> list[list[int]]:
     return groups
 
 
-def read() -> list[dict]:
+def read(pages_dir: Path = PAGES) -> list[dict]:
     slugs, tiles = library()
     x, y, size = ICON
     nx0, ny0, nx1, ny1 = NAME
 
+    paths = sorted(pages_dir.glob("*.png"))
     icons, names = [], []
-    for path in sorted(PAGES.glob("*.png")):
+    for path in paths:
         page = cv2.imread(str(path))
         icons.append(icon_vector(page[y : y + size, x : x + size]))
         names.append(name_vector(page[ny0:ny1, nx0:nx1]))
@@ -122,15 +126,17 @@ def read() -> list[dict]:
                 "margin": round(margin, 3),
                 "pages": len(group),
                 "trusted": margin >= TRUSTED,
+                "runner_up": slugs[ranked[1][page]],
+                "page": paths[page].name,
             }
         )
     return sorted(found, key=lambda f: -f["margin"])
 
 
-def main() -> None:
-    found = read()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(found, indent=2), encoding="utf-8")
+def main(pages_dir: Path = PAGES, out: Path = OUT) -> None:
+    found = read(pages_dir)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(found, indent=2), encoding="utf-8")
     trusted = sum(1 for f in found if f["trusted"])
     print(f"{len(found)} characters visited, {trusted} read confidently")
     for entry in found:
@@ -139,4 +145,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3:
+        main(Path(sys.argv[1]), Path(sys.argv[2]))
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        raise SystemExit("usage: read_box.py [pages_dir out_json]")

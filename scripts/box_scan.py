@@ -3,7 +3,9 @@
 Scrolling footage is mostly motion blur. This keeps the frames where the list
 has come to rest, and throws away the ones that only repeat what we already saw.
 
-    python scripts/box_scan.py path/to/recording.mp4
+    python scripts/box_scan.py path/to/recording.mp4 [out_dir]
+
+Any *.png already in out_dir is deleted first.
 """
 
 import sys
@@ -35,15 +37,15 @@ def _thumbnail(frame: np.ndarray) -> np.ndarray:
     return cv2.resize(grey, (160, 284), interpolation=cv2.INTER_AREA)
 
 
-def scan(video: Path) -> int:
+def scan(video: Path, out_dir: Path = OUT_DIR) -> int:
     capture = cv2.VideoCapture(str(video))
     if not capture.isOpened():
         raise SystemExit(f"could not open {video}")
 
     source_fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
     step = max(1, round(source_fps / SAMPLE_FPS))
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for stale in OUT_DIR.glob("*.png"):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.png"):
         stale.unlink()
 
     previous: np.ndarray | None = None
@@ -70,7 +72,7 @@ def scan(video: Path) -> int:
             continue
 
         seconds = index / source_fps
-        out = OUT_DIR / f"box_{saved:03d}_{seconds:07.2f}s.png"
+        out = out_dir / f"box_{saved:03d}_{seconds:07.2f}s.png"
         cv2.imwrite(str(out), frame)
         last_saved = small
         saved += 1
@@ -81,7 +83,8 @@ def scan(video: Path) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         raise SystemExit(__doc__)
-    count = scan(Path(sys.argv[1]))
-    print(f"kept {count} stills in {OUT_DIR}")
+    out_dir = Path(sys.argv[2]) if len(sys.argv) == 3 else OUT_DIR
+    count = scan(Path(sys.argv[1]), out_dir)
+    print(f"kept {count} stills in {out_dir}")

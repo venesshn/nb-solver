@@ -389,7 +389,18 @@ motion detection. Naming `box_{saved:03d}_{seconds:07.2f}s.png`.
 > Before a third recording, give both scripts an output-directory argument
 > rather than archiving by hand again.
 
-### The second recording (new, 2026-10-21, NOT yet processed)
+### The second recording — PROCESSED 2026-10-21 (afternoon session)
+
+Result: 166 stills → **157 pages** → **57 name clusters**, 21 trusted. Outputs in
+`data/analysis/box_v2/`, `pages_v2/`, `box_reading_v2.json`. A separate capture
+from v1 (status-bar clock 13:41 vs 11:09), but it visits **the same 54
+characters plus 3**. All 54 shared characters read identically, margins within
+±0.006 — consistency, not correctness: the confirmed-wrong reads repeat. Of the
+3 new ones (checked by eye) only Hizashi *Brotherly Fate* is right; Tsume *A
+Brave Mother* and Zabuza *The Demon Returns* are misread. **Union = 57 of 83.**
+Full detail in the memory file.
+
+Original notes on the file, kept for reference:
 
 It exists in **two copies**, both in `C:\Users\venes\Downloads\`, both decoding
 fine. Same stem: `621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy`.
@@ -449,7 +460,11 @@ Stacked all 138 pages, took the across-page standard deviation, thresholded at
 Resulting boxes, now in `read_box.py`:
 
 - **`ICON = (79, 1740, 157)`** — x, y, size. The small square roster icon.
+  **Confirmed by eye** on two pages since: on target, a few px low/left.
 - **`NAME = (170, 500, 740, 670)`** — x0, y0, x1, y1. Name + title text.
+- **`LEVEL_PLAQUE = (320, 1680, 725, 1762)`**, **`LEVEL_VALUE = (480, 1700,
+  700, 1740)`** — found by eye. The value is not fixed-position, and comes in
+  white, yellow (`MAX`) and red (limit-broken) variants.
 - The large character illustration occupies roughly rows 657–1622.
 - Rows 0–123 are static chrome; rows ~2308–2556 are the static bottom nav.
 
