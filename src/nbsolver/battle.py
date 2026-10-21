@@ -13,6 +13,7 @@ from nbsolver.ai import ActionKind, AiAction, AiScript, AiState
 from nbsolver.combat import (
     ATTACK_BOOST_RANKS,
     ATTACK_WEAKENED_RANKS,
+    COMBINATION_VALUE,
     CRITICAL_RATE_RANKS,
     DamageColour,
     critical_rate,
@@ -118,6 +119,9 @@ class Fighter(BaseModel):
     on_hit: list[Effect] = Field(default_factory=list)
     active: list[ActiveEffect] = Field(default_factory=list)
     defeated: bool = False
+    # Attack range by name, and how close it must stand to join a combination.
+    attack_range: str = ""
+    reach: float = 0.0
 
     def technique(self, skill_id: int | None) -> Technique | None:
         if skill_id is None:
@@ -258,6 +262,15 @@ class Order(BaseModel):
     hits: int = 1
     jutsu: bool = False
     chakra_cost: float = 0.0
+    # Further enemies a multi-target jutsu also strikes, after `target`.
+    also: list[str] = Field(default_factory=list)
+    # What the technique itself inflicts on each target it hits.
+    inflicts: list[Effect] = Field(default_factory=list)
+    # What the technique grants its user once it has been used.
+    grants: list[Effect] = Field(default_factory=list)
+    # Health the technique restores to the shared pool.
+    heal: float = 0.0
+    label: str = ""
 
 
 class BattleState(BaseModel):
@@ -586,7 +599,8 @@ def _act(
                 note=f"{order.move_to}",
             )
         )
-    if not order.target:
+    supportive = order.jutsu and bool(order.heal or order.grants)
+    if not order.target and not supportive:
         events.append(Event(turn=state.turn, kind="stall", actor=actor.key))
         return events, 0
     if order.jutsu:
@@ -598,16 +612,87 @@ def _act(
             events.append(Event(turn=state.turn, kind="no-chakra", actor=actor.key))
             return events, 0
         actor.chakra -= cost
-    target = state.fighter(order.target)
-    if target is None or target.defeated:
-        return events, 0
+        if order.label:
+            events.append(
+                Event(turn=state.turn, kind="jutsu", actor=actor.key, note=order.label)
+            )
 
-    landed = resolve_attack(
-        state, actor, target, order.multiplier, rng, jutsu=order.jutsu
-    )
+    landed: list[Event] = []
+    target = state.fighter(order.target) if order.target else None
+    if target is not None and not target.defeated:
+        landed = resolve_attack(
+            state,
+            actor,
+            target,
+            order.multiplier,
+            rng,
+            jutsu=order.jutsu,
+            effects=order.inflicts or None,
+        )
+        for key in order.also:
+            extra = state.fighter(key)
+            if (
+                extra is not None
+                and not extra.defeated
+                and extra.side is not actor.side
+            ):
+                landed += resolve_attack(
+                    state,
+                    actor,
+                    extra,
+                    order.multiplier,
+                    rng,
+                    jutsu=order.jutsu,
+                    effects=order.inflicts or None,
+                )
+        if any(e.kind == "damage" for e in landed) and not target.defeated:
+            joined = _combination(state, actor, target, rng)
+            landed += joined
+            combination_hits = sum(1 for e in joined if e.kind == "damage")
+        else:
+            combination_hits = 0
+    elif not supportive:
+        return events, 0
+    else:
+        combination_hits = 0
     events += landed
-    combo = order.hits if any(e.kind == "damage" for e in landed) else 0
+    if order.heal:
+        events += _heal(state, actor, order.heal)
+    for effect in order.grants:
+        actor.gain(effect)
+        events.append(
+            Event(
+                turn=state.turn,
+                kind="effect",
+                actor=actor.key,
+                target=actor.key,
+                note=effect.kind,
+            )
+        )
+    combo = (
+        order.hits + combination_hits if any(e.kind == "damage" for e in landed) else 0
+    )
     return events, combo
+
+
+def _combination(
+    state: BattleState, actor: Fighter, target: Fighter, rng: random.Random
+) -> list[Event]:
+    """Allies already within their own range of the target join the attack."""
+    events: list[Event] = []
+    for ally in state.team.fielded():
+        if ally is actor or not ally.can_act or not ally.reach or target.defeated:
+            continue
+        if math.dist(ally.position, target.position) > ally.reach:
+            continue
+        share = COMBINATION_VALUE.get(ally.attack_range, 0.0)
+        if share <= 0:
+            continue
+        for event in resolve_attack(state, ally, target, share, rng):
+            if event.kind == "damage":
+                event.note = "combination" + (f", {event.note}" if event.note else "")
+            events.append(event)
+    return events
 
 
 def _chakra_discount(fighter: Fighter) -> float:
