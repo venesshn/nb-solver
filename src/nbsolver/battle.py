@@ -9,10 +9,15 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from nbsolver.combat import (
-    BASE_CRITICAL_RATE,
+    ATTACK_BOOST_RANKS,
+    ATTACK_WEAKENED_RANKS,
+    CRITICAL_RATE_RANKS,
     DamageColour,
+    critical_rate,
     damage,
     damage_colour,
+    rank_value,
+    slip_damage,
 )
 from nbsolver.effects import Effect, EffectKind, EffectMode
 from nbsolver.enums import Element
@@ -30,23 +35,11 @@ class BattleRules(BaseModel):
     # Confirmed by the player: a combo past this many hits tops everyone up again.
     combo_hits_for_bonus: int = 15
     combo_chakra_bonus: float = 1.0
-    # Missions reach at least tier 6, and what any tier is worth is undocumented.
-    slip_damage_by_tier: dict[int, int] = Field(
-        default_factory=lambda: {1: 200, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200}
-    )
-    slip_damage_default: int = 200
     knockback_distance: float = 1.0
-
-    def slip_damage(self, tier: int | None) -> int:
-        if tier is None:
-            return self.slip_damage_default
-        return self.slip_damage_by_tier.get(tier, self.slip_damage_default)
 
 
 UNVERIFIED_RULES = (
     "combo_chakra_bonus",
-    "slip_damage_by_tier",
-    "slip_damage_default",
     "knockback_distance",
 )
 
@@ -85,6 +78,9 @@ class Fighter(BaseModel):
     side: Side
     element: Element
     attack: int = 0
+    defense: int = 0
+    # Abilities, field skills and a buddy skill all add to ATK before multipliers.
+    flat_attack_boost: float = 0.0
     max_health: int = 0
     health: int = 0
     position: Position = (0.0, 0.0)
@@ -114,20 +110,36 @@ class Fighter(BaseModel):
         return next((c.element for c in reversed(changes) if c.element), self.element)
 
     @property
-    def attack_power(self) -> float:
-        """Percentages are summed; the game's real stacking rule is unconfirmed."""
-        percent = sum(e.magnitude or 0.0 for e in self.of_kind(EffectKind.ATTACK_BOOST))
-        percent -= sum(
-            e.magnitude or 0.0 for e in self.of_kind(EffectKind.ATTACK_REDUCTION)
+    def attack_boost(self) -> float:
+        """Repeat casts raise the rank rather than multiplying again."""
+        ranks = [e.tier or 0 for e in self.of_kind(EffectKind.ATTACK_BOOST)]
+        return rank_value(ATTACK_BOOST_RANKS, max(ranks, default=0))
+
+    @property
+    def attack_weakened(self) -> float:
+        ranks = [e.tier or 0 for e in self.of_kind(EffectKind.ATTACK_REDUCTION)]
+        return rank_value(ATTACK_WEAKENED_RANKS, max(ranks, default=0))
+
+    @property
+    def other_bonuses(self) -> float:
+        """Ability percentages, which add among themselves before multiplying."""
+        percent = sum(
+            e.magnitude or 0.0
+            for e in self.of_kind(EffectKind.ATTACK_BOOST)
+            if e.tier is None
         )
-        return max(0.0, self.attack * (1 + percent / 100))
+        return 1 + percent / 100
 
     @property
     def critical_rate(self) -> float:
-        boosts = sum(
-            e.magnitude or 0.0 for e in self.of_kind(EffectKind.CRITICAL_RATE_BOOST)
-        )
-        return BASE_CRITICAL_RATE + boosts
+        boost = 1.0
+        for effect in self.of_kind(EffectKind.CRITICAL_RATE_BOOST):
+            boost *= (
+                rank_value(CRITICAL_RATE_RANKS, effect.tier)
+                if effect.tier
+                else 1 + (effect.magnitude or 0.0) / 100
+            )
+        return critical_rate(boost)
 
     @property
     def can_act(self) -> bool:
@@ -269,7 +281,7 @@ def _reduction(attacker: Fighter, target: Fighter) -> float:
     percent = sum(
         e.magnitude or 0.0 for e in target.of_kind(EffectKind.DAMAGE_REDUCTION)
     )
-    return min(percent, 100.0)
+    return min(percent, 100.0) / 100
 
 
 def _push(target: Fighter, away_from: Position, distance: float) -> None:
@@ -421,18 +433,26 @@ def resolve_attack(
         ]
 
     critical = _rolls(attacker.critical_rate, rng)
-    raw = damage(
-        round(attacker.attack_power),
-        multiplier,
-        attacker.current_element,
-        target.current_element,
-        critical=critical,
-        nullify_reduction=attacker.has(
-            EffectKind.NULLIFY_ELEMENT_REDUCTION, EffectMode.GRANT
+    landed = _take_damage(
+        state,
+        target,
+        damage(
+            attacker.attack,
+            multiplier,
+            attacker.current_element,
+            target.current_element,
+            flat_attack_boost=attacker.flat_attack_boost,
+            attack_boost=attacker.attack_boost,
+            attack_weakened=attacker.attack_weakened,
+            other_bonuses=attacker.other_bonuses,
+            critical=critical,
+            nullify_reduction=attacker.has(
+                EffectKind.NULLIFY_ELEMENT_REDUCTION, EffectMode.GRANT
+            ),
+            damage_reduction=_reduction(attacker, target),
+            defense=target.defense,
         ),
     )
-    raw *= 1 - _reduction(attacker, target) / 100
-    landed = _take_damage(state, target, raw)
 
     events = [
         Event(
@@ -455,11 +475,12 @@ def resolve_attack(
 
 
 def tick_slip_damage(state: BattleState, rng: random.Random) -> list[Event]:
-    """Slip damage lands on its own, outside anyone's attack."""
+    """A share of what the victim has left, and nothing dodges it."""
     events: list[Event] = []
     for fighter in [*state.team.fielded(), *state.living_enemies]:
         for effect in fighter.of_kind(EffectKind.SLIP_DAMAGE, EffectMode.INFLICT):
-            landed = _take_damage(state, fighter, state.rules.slip_damage(effect.tier))
+            pool = state.team.health if fighter.side is Side.PLAYER else fighter.health
+            landed = _take_damage(state, fighter, slip_damage(pool, effect.tier))
             events.append(
                 Event(
                     turn=state.turn,
@@ -475,54 +496,50 @@ def tick_slip_damage(state: BattleState, rng: random.Random) -> list[Event]:
     return events
 
 
-def _player_phase(
-    state: BattleState, orders: list[Order], rng: random.Random
+def _act(
+    state: BattleState, order: Order, rng: random.Random
 ) -> tuple[list[Event], int]:
     events: list[Event] = []
-    combo = 0
-    for order in orders:
-        actor = state.team.member(order.fighter)
-        if (
-            actor is None
-            or not actor.can_act
-            or order.fighter not in state.team.on_field
-        ):
-            continue
-        if order.move_to is not None and not actor.has(
-            EffectKind.MOVEMENT_RESTRICTION, EffectMode.INFLICT
-        ):
-            actor.position = order.move_to
-            events.append(
-                Event(
-                    turn=state.turn,
-                    kind="move",
-                    actor=actor.key,
-                    note=f"{order.move_to}",
-                )
+    actor = state.team.member(order.fighter)
+    if actor is None or order.fighter not in state.team.on_field:
+        return events, 0
+    # An immobilised unit still burns its turn, which is what makes the effect bite.
+    if not actor.can_act:
+        return [Event(turn=state.turn, kind="immobilised", actor=actor.key)], 0
+
+    if order.move_to is not None and not actor.has(
+        EffectKind.MOVEMENT_RESTRICTION, EffectMode.INFLICT
+    ):
+        actor.position = order.move_to
+        events.append(
+            Event(
+                turn=state.turn,
+                kind="move",
+                actor=actor.key,
+                note=f"{order.move_to}",
             )
-        if not order.target:
-            events.append(Event(turn=state.turn, kind="stall", actor=actor.key))
-            continue
-        if order.jutsu:
-            if actor.has(EffectKind.JUTSU_SEAL, EffectMode.INFLICT):
-                events.append(Event(turn=state.turn, kind="sealed", actor=actor.key))
-                continue
-            cost = order.chakra_cost * (1 - _chakra_discount(actor) / 100)
-            if actor.chakra < cost:
-                events.append(Event(turn=state.turn, kind="no-chakra", actor=actor.key))
-                continue
-            actor.chakra -= cost
-        target = state.fighter(order.target)
-        if target is None or target.defeated:
-            continue
-        landed = resolve_attack(
-            state, actor, target, order.multiplier, rng, jutsu=order.jutsu
         )
-        events += landed
-        if any(e.kind == "damage" for e in landed):
-            combo += order.hits
-        if state.over:
-            break
+    if not order.target:
+        events.append(Event(turn=state.turn, kind="stall", actor=actor.key))
+        return events, 0
+    if order.jutsu:
+        if actor.has(EffectKind.JUTSU_SEAL, EffectMode.INFLICT):
+            events.append(Event(turn=state.turn, kind="sealed", actor=actor.key))
+            return events, 0
+        cost = order.chakra_cost * (1 - _chakra_discount(actor) / 100)
+        if actor.chakra < cost:
+            events.append(Event(turn=state.turn, kind="no-chakra", actor=actor.key))
+            return events, 0
+        actor.chakra -= cost
+    target = state.fighter(order.target)
+    if target is None or target.defeated:
+        return events, 0
+
+    landed = resolve_attack(
+        state, actor, target, order.multiplier, rng, jutsu=order.jutsu
+    )
+    events += landed
+    combo = order.hits if any(e.kind == "damage" for e in landed) else 0
     return events, combo
 
 
@@ -560,22 +577,23 @@ def _give_chakra(state: BattleState, fighter: Fighter, amount: float) -> None:
 
 def take_turn(
     state: BattleState,
-    orders: list[Order],
+    order: Order,
     rng: random.Random | None = None,
 ) -> list[Event]:
-    """One full round: the player acts, the enemies answer, then everything decays."""
+    """One character's action, which is exactly what the game counts as a turn."""
     rng = rng or random.Random()
     state.turn += 1
-    events, combo = _player_phase(state, orders, rng)
+    events, combo = _act(state, order, rng)
     if not state.over:
         events += _enemy_phase(state, rng)
     if not state.over:
         events += tick_slip_damage(state, rng)
 
-    # A unit's buddy charges alongside it, so a whole pair gains from one turn.
-    for fighter in state.team.fielded():
-        _give_chakra(state, fighter, state.rules.chakra_per_turn)
-        if (partner := state.team.buddy(fighter.key)) is not None:
+    # Only the unit that acted refills, and its buddy charges alongside it.
+    actor = state.team.member(order.fighter)
+    if actor is not None:
+        _give_chakra(state, actor, state.rules.chakra_per_turn)
+        if (partner := state.team.buddy(actor.key)) is not None:
             _give_chakra(state, partner, state.rules.chakra_per_turn)
 
     if combo > state.rules.combo_hits_for_bonus:

@@ -152,13 +152,18 @@ def test_nullifying_element_reduction_restores_full_damage_without_colouring_it_
     assert events[0].colour is DamageColour.DISADVANTAGE
 
 
-def test_slip_damage_ticks_on_its_own_and_prints_purple():
+def test_slip_damage_takes_a_share_of_what_the_victim_has_left():
     poisoned = foe()
     poisoned.gain(Effect(kind=EffectKind.SLIP_DAMAGE, tier=2, duration=2))
     state = battle([hero()], [poisoned])
+
     events = tick_slip_damage(state, NoLuck())
     assert events[0].colour is DamageColour.SLIP
-    assert poisoned.health == 5000 - state.rules.slip_damage_by_tier[2]
+    assert poisoned.health == 5000 - 200
+
+    # The share is of current health, so the next tick is smaller than the first.
+    tick_slip_damage(state, NoLuck())
+    assert poisoned.health == 4800 - 192
 
 
 def test_heal_to_damage_turns_recovery_against_the_team():
@@ -189,7 +194,8 @@ def test_an_immobilised_unit_loses_its_turn():
     stuck = hero()
     stuck.gain(Effect(kind=EffectKind.IMMOBILIZATION, duration=1))
     state = battle([stuck], [foe()])
-    take_turn(state, [Order(fighter="hero", target="foe")], NoLuck())
+    events = take_turn(state, Order(fighter="hero", target="foe"), NoLuck())
+    assert any(e.kind == "immobilised" for e in events)
     assert state.enemies[0].health == 5000
 
 
@@ -199,15 +205,13 @@ def test_a_jutsu_sealed_unit_cannot_spend_chakra():
     state = battle([sealed], [foe()])
     events = take_turn(
         state,
-        [
-            Order(
-                fighter="hero",
-                target="foe",
-                jutsu=True,
-                chakra_cost=3.0,
-                multiplier=3.0,
-            )
-        ],
+        Order(
+            fighter="hero",
+            target="foe",
+            jutsu=True,
+            chakra_cost=3.0,
+            multiplier=3.0,
+        ),
         NoLuck(),
     )
     assert any(e.kind == "sealed" for e in events)
@@ -224,32 +228,31 @@ def test_a_jutsu_spends_chakra_and_a_discount_makes_it_cheaper():
     state = battle([thrifty], [foe()])
     take_turn(
         state,
-        [
-            Order(
-                fighter="hero",
-                target="foe",
-                jutsu=True,
-                chakra_cost=3.0,
-                multiplier=2.0,
-            )
-        ],
+        Order(
+            fighter="hero",
+            target="foe",
+            jutsu=True,
+            chakra_cost=3.0,
+            multiplier=2.0,
+        ),
         NoLuck(),
     )
     assert thrifty.chakra == pytest.approx(3.0 - 1.5 + state.rules.chakra_per_turn)
     assert state.enemies[0].health == 5000 - 3000
 
 
-def test_a_fielded_unit_gains_one_chakra_a_turn_and_its_buddy_charges_with_it():
-    front, benched, alone = hero(), hero(key="bench"), hero(key="alone")
-    state = battle([front, benched, alone], [foe()])
+def test_only_the_unit_that_acted_refills_and_its_buddy_charges_with_it():
+    front, benched, other = hero(), hero(key="bench"), hero(key="other")
+    state = battle([front, benched, other], [foe()])
     state.team.pairs = [("hero", "bench")]
-    state.team.on_field = ["hero", "alone"]
+    state.team.on_field = ["hero", "other"]
 
-    take_turn(state, [Order(fighter="hero")], NoLuck())
-    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
     assert front.chakra == 2.0
     assert benched.chakra == 2.0
-    assert alone.chakra == 2.0
+    # It never took a turn of its own, so it gained nothing.
+    assert other.chakra == 0.0
 
 
 def test_a_combo_past_fifteen_hits_tops_everyone_up_again():
@@ -258,10 +261,10 @@ def test_a_combo_past_fifteen_hits_tops_everyone_up_again():
     state.team.pairs = [("hero", "bench")]
     state.team.on_field = ["hero"]
 
-    take_turn(state, [Order(fighter="hero", target="foe", hits=15)], NoLuck())
+    take_turn(state, Order(fighter="hero", target="foe", hits=15), NoLuck())
     assert front.chakra == 1.0
 
-    events = take_turn(state, [Order(fighter="hero", target="foe", hits=16)], NoLuck())
+    events = take_turn(state, Order(fighter="hero", target="foe", hits=16), NoLuck())
     assert any(e.kind == "combo" for e in events)
     assert front.chakra == 3.0
     assert benched.chakra == 3.0
@@ -271,7 +274,7 @@ def test_a_missed_swing_builds_no_combo():
     guarded = foe()
     guarded.gain(Effect(kind=EffectKind.PERFECT_DODGE, mode=EffectMode.GRANT))
     state = battle([hero()], [guarded])
-    events = take_turn(state, [Order(fighter="hero", target="foe", hits=40)], NoLuck())
+    events = take_turn(state, Order(fighter="hero", target="foe", hits=40), NoLuck())
     assert not any(e.kind == "combo" for e in events)
 
 
@@ -280,11 +283,11 @@ def test_chakra_recovery_sealing_stops_the_gauge_filling():
     sealed.gain(Effect(kind=EffectKind.CHAKRA_RECOVERY_SEAL, duration=2))
     state = battle([sealed], [foe()])
 
-    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
     assert sealed.chakra == 0.0
 
-    take_turn(state, [Order(fighter="hero")], NoLuck())
-    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
     assert sealed.chakra == 1.0
 
 
@@ -305,10 +308,10 @@ def test_an_enemy_strikes_when_its_printed_countdown_reaches_zero():
     clocked = foe(countdown=2, attack_interval=2)
     state = battle([hero()], [clocked])
 
-    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
     assert state.team.health == state.team.max_health
 
-    take_turn(state, [Order(fighter="hero")], NoLuck())
+    take_turn(state, Order(fighter="hero"), NoLuck())
     assert state.team.health == state.team.max_health - 250
     assert clocked.countdown == 2
 
@@ -323,29 +326,54 @@ def test_knockback_pushes_the_target_away_from_whoever_hit_it():
     assert target.position == (5.0, 0.0)
 
 
-def test_an_attack_boost_and_reduction_cancel_out():
-    boosted = hero()
-    boosted.gain(
-        Effect(kind=EffectKind.ATTACK_BOOST, mode=EffectMode.GRANT, magnitude=50.0)
+def test_an_attack_boost_and_reduction_are_ranks_that_multiply():
+    buffed = hero()
+    buffed.gain(Effect(kind=EffectKind.ATTACK_BOOST, mode=EffectMode.GRANT, tier=2))
+    assert buffed.attack_boost == 1.5
+
+    # A second cast raises the rank rather than multiplying a second time.
+    buffed.gain(Effect(kind=EffectKind.ATTACK_BOOST, mode=EffectMode.GRANT, tier=3))
+    assert buffed.attack_boost == 1.75
+
+    buffed.gain(Effect(kind=EffectKind.ATTACK_REDUCTION, tier=1))
+    assert buffed.attack_weakened == 0.85
+
+
+def test_a_flat_boost_is_multiplied_by_the_technique_that_follows_it():
+    plain = hero(attack=161)
+    boosted = hero(key="boosted", attack=161, flat_attack_boost=117.0)
+    state = battle([plain, boosted], [foe(element=Element.HEART)])
+
+    normal = resolve_attack(state, plain, state.enemies[0], 1.0, NoLuck())
+    lifted = resolve_attack(state, boosted, state.enemies[0], 1.0, NoLuck())
+    assert lifted[0].amount - normal[0].amount == 117
+
+    bare = resolve_attack(state, plain, state.enemies[0], 2.2, NoLuck())
+    jutsu = resolve_attack(state, boosted, state.enemies[0], 2.2, NoLuck())
+    assert jutsu[0].amount - bare[0].amount == pytest.approx(257, abs=1)
+
+
+def test_defense_comes_off_every_hit_and_a_hit_never_does_nothing():
+    state = battle([hero(attack=1000)], [foe(element=Element.HEART, defense=3000)])
+    events = resolve_attack(
+        state, state.team.members[0], state.enemies[0], 1.0, NoLuck()
     )
-    assert boosted.attack_power == 1500
-    boosted.gain(Effect(kind=EffectKind.ATTACK_REDUCTION, magnitude=50.0))
-    assert boosted.attack_power == 1000
+    assert events[0].amount == 1
 
 
 def test_effects_wear_off_after_their_stated_turns():
     stuck = hero()
     stuck.gain(Effect(kind=EffectKind.IMMOBILIZATION, duration=1))
     state = battle([stuck], [foe()])
-    take_turn(state, [Order(fighter="hero", target="foe")], NoLuck())
+    take_turn(state, Order(fighter="hero", target="foe"), NoLuck())
     assert not stuck.has(EffectKind.IMMOBILIZATION)
 
-    take_turn(state, [Order(fighter="hero", target="foe")], NoLuck())
+    take_turn(state, Order(fighter="hero", target="foe"), NoLuck())
     assert state.enemies[0].health == 5000 - 1500
 
 
 def test_the_battle_ends_when_the_last_enemy_falls():
     state = battle([hero(attack=10000)], [foe()])
-    take_turn(state, [Order(fighter="hero", target="foe")], NoLuck())
+    take_turn(state, Order(fighter="hero", target="foe"), NoLuck())
     assert state.cleared
     assert state.over
