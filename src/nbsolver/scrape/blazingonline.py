@@ -59,9 +59,15 @@ class BlazingOnline:
         return response.json()
 
     def mission_pages(self) -> list[str]:
-        """Page ids such as 'e3013', one per event in the index."""
-        events = self._get("data/missions.json").get("events", [])
-        return [event["page"] for event in events if event.get("page")]
+        """Every playable page: events, trials, Ninja Road, story, gaiden and extras."""
+        index = self._get("data/missions.json")
+        pages = [e["page"] for e in index.get("events", []) if e.get("page")]
+        pages += [t["page"] for t in index.get("trials", []) if t.get("page")]
+        pages += [n.get("page") or f"nr-{n['no']}" for n in index.get("ninjaRoad", [])]
+        for chapters in (index.get("story") or {}).values():
+            pages += [c["page"] for c in chapters if c.get("page")]
+        pages += [x["id"] for x in index.get("extra", []) if x.get("id")]
+        return list(dict.fromkeys(pages))
 
     def raw_mission(self, page: str) -> dict[str, Any]:
         return self._get(f"data/m/{page}.json")
@@ -219,12 +225,17 @@ def _stage(entry: dict[str, Any], foes: dict[str, Any]) -> Stage | None:
 
 def parse_mission(raw: dict[str, Any]) -> Mission:
     foes = raw.get("foes") or {}
-    stages = [
-        stage
-        for tab in raw.get("tabs", [])
-        for entry in tab.get("missions", [])
-        if (stage := _stage(entry, foes)) is not None
-    ]
+    stages = []
+    for tab in raw.get("tabs", []):
+        # Story and Gaiden pages carry a Hard tab whose stages reuse the Normal names.
+        hard = _text(tab.get("name")).lower() == "hard"
+        for entry in tab.get("missions", []):
+            stage = _stage(entry, foes)
+            if stage is None:
+                continue
+            if hard:
+                stage.name = f"{stage.name} (Hard)"
+            stages.append(stage)
 
     sources = [ATTRIBUTION]
     if url := (raw.get("wiki") or {}).get("url"):

@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             11 files, 148 tests
+tests/             14 files, 185 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -201,11 +201,12 @@ Rebirth-only units, excluded by `load_units(revival_only=True)`.
 
 ### `data/` contents
 
-- `data/catalogue.json` (~13.5 MB) — 166 missions, 435 stages, 1,343 maps, 7,169
-  enemy rows; **1,325 maps carry battlefield geometry**
-- `data/units.json` — 1,100 units
-- `data/portraits/*.webp` — **551 icons**, 128×128 RGBA, plus `index.json` = `{slug: icon}`
-- `data/rosters/example.json` — **only 5 units**; this is the product blocker
+- `data/catalogue.json` (~37 MB) — 241 missions, 869 stages (see §10); emergency
+  maps carry battlefield geometry from hideoutgacha, other modes don't
+- `data/units.json` — 1,100 units (1,084 obtainable on Revival)
+- `data/portraits/*.webp` — **551 icons**, kept locally and git-ignored (game art);
+  `index.json` = `{slug: icon}` is tracked
+- `data/rosters/example.json` — the player's 83-unit box, no player details
 - `data/cache/missions/*.json` (166), `data/cache/hideout/*.html` (166)
 - `data/analysis/box/*.png` — 165 stills from the recording
 - `data/analysis/pages/*.png` — **138 per-character detail pages**
@@ -658,47 +659,52 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
 
 **Done**
 
-- Mission catalogue: 166 missions, 435 stages, 1,343 maps, 7,169 enemy rows;
-  1,325 maps with battlefield geometry
-- Unit catalogue: 1,100 units; effect taxonomy complete, parser leaves nothing
-  unrecognised
+- Mission catalogue: **241 missions, 869 stages** — emergency 167, Ninja Road
+  42, story 23 (normal + "(Hard)" stages), trials 5, gaiden 3 (normal + Hard),
+  Captain Exam 1. Rebuild with `scripts/build_catalogue.py`. Only emergency
+  missions have battlefield geometry (hideoutgacha); others use a generic layout
+  and say so. **Not buildable from the source:** boss raids (no maps). Phantom
+  Castle: not wanted by the user.
+- Unit catalogue: 1,100 units; **Revival = no 7★ and no Rebirth-only units**
+  (`Unit.in_revival`), so the site ships 1,084.
 - `combat.py` implements the published formula, pinned by worked examples
 - AI parser: 6,315 states, 100% parsed; AI-driven enemy phase wired into
-  `battle.py` and verified against real Orochimaru data
+  `battle.py` and verified against real Orochimaru data; reaction branches fire
 - **Roster**: 83 units read from the recording (Python and browser readers
-  both 83/83, held-out run 1 identical) → `data/rosters/example.json`
-- **Solver** (`simulate.py`, `solver.py`): player fighters at the owned level,
-  every map and wave, jutsu-aware policy, multi-target jutsu, heals and buffs,
-  **combination attacks**, buddy-skill effects; shortlist of teams under the
-  cost limit and objective, Monte Carlo with a Wilson 95% interval, "depends
-  on" breakdown, showcase run, grinding advice. **Reproduces the user's e3003
-  clear** (test). 8 ms per run in CPython; a solve is ~1.5 s, ~7 s in browser.
-- **Website**: box from recording upload / example / JSON / manual; mission
-  search, stage, beat vs complete objective, helper auto/none/pick; results with
-  team, likelihood, depends-on, advice, assumptions, animated grid playback.
-- **156 tests passing, ruff clean**
+  both 83/83, held-out run 1 identical) → `data/rosters/example.json`, no player
+  details, **team cost limit 329** (user, Ninja Rank 90).
+- **Engine** (`battle.py`): combinations (+ "during Combinations" boosts),
+  counters, element damage bonuses/reductions, regeneration, perfect dodge as a
+  count, percentage-of-health attacks, health self-costs, chakra cuts and
+  chakra-restoring power-ups, self-inflicted ailments, reactions, enemies close
+  in on their turn, script-less enemies alternate attack/skill, Perimeter
+  Barrier 2.5×.
+- **Passives** (`passives.py`): abilities (only as many as the box says are
+  unlocked — evidence says the user's are mostly locked), field skills (every
+  front unit's, weakest end of the range), buddy skills. Coverage: field 93%,
+  buddy 95%, abilities 75% of clauses; unknown wording is skipped, never guessed.
+- **Solver**: buff jutsu are cast; supports chosen for health within budget;
+  supports switch in when the front unit is immobilised; every objective kind
+  is judged (combination finish = boss killed by a 3+ unit action; drop complete
+  = every carrier defeated, boss held back until then). **Reproduces both
+  user-confirmed clears of e3003: Heart team 100%, Body-only ~25%** (tests).
+- **Website**: also an abilities-unlocked column and a mission-type filter;
+  results note Ninja Road and missing-layout assumptions.
+- **185 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+  from the shipped zip alone — a module left out of the browser build fails CI
+  (it happened once: `passives.py`).
 
 **Known weaknesses (say so to the user, don't hide them)**
 
-- Simulator may be too lenient (enemies never move) and too harsh elsewhere
-  (no field skills, no ability boosts, no switching). Body-only on e3003 comes
-  out 0% — unverified either way.
-- Movement/attack distances, the combination joining rule and the enemy
-  countdown for script-less enemies (3) are estimates — listed in `UNVERIFIED`.
-- Turn-limit / ninjutsu-finish / no-ailment objectives are judged; combo-finish
-  and drop-complete are reported as "can't be checked yet".
-
-**Not started**
-
-- Reaction branches; counters; Field and Sync Skills; Perfect Dodge as a count;
-  percentage attacks and fixed-damage areas; switching supports in;
-  ability boosts from dupes; catalogue expansion (story, story-hard, gaiden,
-  ninja-road, trial)
+- Unpublished numbers stay estimates, listed in `UNVERIFIED` and on the site:
+  movement/attack distances, enemy step, combination joining rule, script-less
+  enemy rhythm (3), hits per attack (1; results insensitive 1–7).
+- Ninja Road is simulated as one team / one health pool over all maps, which
+  probably understates real odds; NR #1 comes out "No winning strategy found".
+- Two calibration points (both e3003) can't prove accuracy everywhere.
+- GitHub may still serve pre-scrub commits to anyone holding their SHAs; full
+  removal needs the repo deleted and recreated (needs `delete_repo` scope).
 
 **Open questions for the user**
 
-- Team cost limit: assumed 200 — needs confirming.
-- Do 7★ units (8 in the data, e.g. Kakashi 'Entrusted With Hope' 14217) exist on
-  Revival? Until confirmed, the auto-helper only considers 6★.
-- Is Body-only on "The Evil Snake Shows its Fangs [B]" clearable with their Body
-  units? A yes would show the simulator is too harsh.
+- Does Ninja Road let you change teams between maps / keep per-unit health?

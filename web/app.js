@@ -234,13 +234,21 @@ function reviewReadings(readings) {
 
 // ---------- missions ----------
 
+const MODE_NAMES = { emergency: "Emergency", story: "Story", gaiden: "Gaiden", trial: "Trial", ninja_road: "Ninja Road" };
+
+function modeName(mode) {
+  return MODE_NAMES[mode] || (mode ? mode.replace(/[_-]/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "Other");
+}
+
 function renderMissions() {
   const query = $("mission-search").value.trim().toLowerCase();
+  const mode = $("mode-filter").value;
   const list = $("mission");
   const current = list.value;
   list.innerHTML = state.missions
+    .filter((m) => !mode || m.mode === mode)
     .filter((m) => !query || m.name.toLowerCase().includes(query) || m.stages.some((s) => s.name.toLowerCase().includes(query) || (s.boss || "").toLowerCase().includes(query)))
-    .map((m) => `<option value="${m.slug}">${escapeHtml(m.name)} · ${m.mode}</option>`)
+    .map((m) => `<option value="${m.slug}">${escapeHtml(m.name)} · ${modeName(m.mode)}</option>`)
     .join("");
   if (current) list.value = current;
 }
@@ -268,6 +276,7 @@ function renderObjectives() {
 }
 
 $("mission-search").addEventListener("input", renderMissions);
+$("mode-filter").addEventListener("change", renderMissions);
 $("mission").addEventListener("change", renderStages);
 $("stage").addEventListener("change", renderObjectives);
 document.querySelectorAll('input[name="goal"]').forEach((r) => r.addEventListener("change", renderObjectives));
@@ -420,6 +429,8 @@ async function start() {
   state.units = units;
   state.byId = new Map(units.map((u) => [u.unit_id, u]));
   state.missions = missions;
+  const modes = [...new Set(missions.map((m) => m.mode))].sort();
+  $("mode-filter").innerHTML += modes.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(modeName(m))}</option>`).join("");
   $("unit-list").innerHTML = units
     .filter((u) => u.rarity >= 3)
     .map((u) => `<option value="${escapeHtml(unitLabel(u))}"></option>`)

@@ -8,6 +8,7 @@ one file per mission so a visitor only downloads what they pick.
 """
 
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -20,21 +21,29 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 ENGINE = ROOT / "src" / "nbsolver"
-# Only what the solver imports; scrapers and the OpenCV reader stay behind.
-MODULES = (
-    "__init__.py",
-    "ai.py",
-    "battle.py",
-    "combat.py",
-    "effects.py",
-    "enums.py",
-    "missions.py",
-    "models.py",
-    "roster.py",
-    "simulate.py",
-    "solver.py",
-    "webapi.py",
-)
+# Everything in the package ships except these: scraping, OpenCV reading and asset
+# extraction need libraries a browser doesn't have, and the solver never imports them.
+LEFT_OUT = {"box_reader.py", "catalogue.py", "extract.py"}
+
+
+def engine_modules() -> list[str]:
+    modules = sorted(p.name for p in ENGINE.glob("*.py") if p.name not in LEFT_OUT)
+    shipped = {name.removesuffix(".py") for name in modules}
+    for name in modules:
+        text = (ENGINE / name).read_text(encoding="utf-8")
+        for needed in re.findall(r"^\s*from nbsolver\.(\w+)", text, re.MULTILINE):
+            if needed not in shipped:
+                raise SystemExit(
+                    f"{name} imports nbsolver.{needed}, which is not shipped"
+                )
+    return modules
+
+
+def write_engine(path: Path) -> None:
+    """The package as the browser gets it: a zip Pyodide unpacks onto its path."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in engine_modules():
+            archive.write(ENGINE / name, f"nbsolver/{name}")
 
 
 def compact(value) -> str:
@@ -100,9 +109,7 @@ def build(out: Path) -> None:
 
     py = out / "py"
     py.mkdir(exist_ok=True)
-    with zipfile.ZipFile(py / "nbsolver.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-        for name in MODULES:
-            archive.write(ENGINE / name, f"nbsolver/{name}")
+    write_engine(py / "nbsolver.zip")
     (out / ".nojekyll").write_text("", encoding="utf-8")
 
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())

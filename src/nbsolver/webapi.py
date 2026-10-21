@@ -61,6 +61,19 @@ def solve_json(
         "name": mission.name,
         "stage": stage.name,
     }
+    notes = []
+    if mission.mode == "ninja_road":
+        notes.append(
+            "Ninja Road is played here as one team with one health pool across every"
+            " map; if the game lets you change teams between maps, real odds are better."
+        )
+    if any(m.grid is None or not m.grid.columns for m in stage.maps):
+        notes.append(
+            "No battlefield layout is published for this mission, so a generic one is"
+            " used."
+        )
+    if notes and "assumptions" in result:
+        result["assumptions"] = notes + result["assumptions"]
     result["grids"] = [
         {"columns": m.grid.columns, "rows": m.grid.rows} if m.grid else None
         for m in stage.maps

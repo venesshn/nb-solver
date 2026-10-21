@@ -54,7 +54,10 @@
 
       <section id="mission-panel" class="card">
         <h2>2 · The mission</h2>
-        <input id="mission-search" placeholder="Search missions…" />
+        <div class="row">
+          <input id="mission-search" placeholder="Search missions…" />
+          <select id="mode-filter" aria-label="Mission type"><option value="">All types</option></select>
+        </div>
         <select id="mission" size="8"></select>
         <div class="row">
           <label>Stage <select id="stage"></select></label>
