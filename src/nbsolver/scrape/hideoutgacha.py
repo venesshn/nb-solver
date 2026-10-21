@@ -26,6 +26,7 @@ from nbsolver.missions import (
     Tile,
     WaveSpawn,
 )
+from nbsolver.scrape import http
 
 BASE = "https://www.hideoutgacha.com"
 ATTRIBUTION = "hideoutgacha.com (Hideout Guides)"
@@ -98,9 +99,9 @@ class HideoutGacha:
         self._client.close()
 
     def mission_html(self, mission_id: int | str) -> str:
-        response = self._client.get(f"/games/naruto-blazing/missions/{mission_id}")
-        response.raise_for_status()
-        return response.text
+        return http.get(
+            self._client, f"/games/naruto-blazing/missions/{mission_id}"
+        ).text
 
 
 def parse_grid(svg: Tag) -> MapGrid:

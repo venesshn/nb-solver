@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup, Tag
 
 from nbsolver.missions import ClearCondition, Mission, Rank, Stage, UnitBoost
 from nbsolver.models import Element
+from nbsolver.scrape import http
 
 API = "https://naruto-blazing.fandom.com/api.php"
 ATTRIBUTION = "Naruto Blazing Wiki (Fandom), CC BY-SA 3.0"
@@ -26,12 +27,11 @@ def fetch_page_html(page: str, client: httpx.Client | None = None) -> str:
     owned = client is None
     client = client or httpx.Client(timeout=30, headers={"User-Agent": USER_AGENT})
     try:
-        response = client.get(
+        payload = http.get(
+            client,
             API,
             params={"action": "parse", "page": page, "prop": "text", "format": "json"},
-        )
-        response.raise_for_status()
-        payload = response.json()
+        ).json()
         if "error" in payload:
             raise ValueError(f"wiki error for {page!r}: {payload['error'].get('info')}")
         return payload["parse"]["text"]["*"]
@@ -157,7 +157,8 @@ def fetch_wikitext(page: str, client: httpx.Client | None = None) -> str:
     owned = client is None
     client = client or httpx.Client(timeout=30, headers={"User-Agent": USER_AGENT})
     try:
-        response = client.get(
+        response = http.get(
+            client,
             API,
             params={
                 "action": "parse",
@@ -166,7 +167,6 @@ def fetch_wikitext(page: str, client: httpx.Client | None = None) -> str:
                 "format": "json",
             },
         )
-        response.raise_for_status()
         return response.json()["parse"]["wikitext"]["*"]
     finally:
         if owned:

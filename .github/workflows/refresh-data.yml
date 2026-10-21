@@ -23,7 +23,7 @@ jobs:
         run: uv sync --locked
       - name: Rebuild the mission catalogue
         run: uv run python scripts/build_catalogue.py
-      - name: Refuse anything that lost missions
+      - name: Refuse anything that lost data
         run: uv run python scripts/check_catalogue.py
       - name: Test against the new data
         run: uv run pytest -q

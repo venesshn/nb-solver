@@ -28,6 +28,7 @@ from nbsolver.models import (
     StatLevel,
     Unit,
 )
+from nbsolver.scrape import http
 
 BASE = "https://www.blazingonline.wiki/"
 ATTRIBUTION = "blazingonline.wiki (Project: Rebirth server data)"
@@ -54,9 +55,7 @@ class BlazingOnline:
         self._client.close()
 
     def _get(self, path: str) -> Any:
-        response = self._client.get(path, follow_redirects=True)
-        response.raise_for_status()
-        return response.json()
+        return http.get(self._client, path, follow_redirects=True).json()
 
     def mission_pages(self) -> list[str]:
         """Every playable page: events, trials, Ninja Road, story, gaiden and extras."""
