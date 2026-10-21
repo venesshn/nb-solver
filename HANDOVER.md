@@ -418,6 +418,15 @@ data/rosters/example.json` (refuses to write if any page is flagged).
 `build_roster.py` no longer writes the roster; it checks the confirmed team is
 in it and the team HP still matches.
 
+**Decided by the user (2026-10-21): on the site, players load their roster by
+uploading a box recording, processed entirely in the browser** (no server; the
+video never leaves the device). Port the pipeline to the frontend: decode
+frames via `<video>` + canvas, split on the black fades, crop banner/stars/level
+at the boxes above, OCR with tesseract.js, snap to the shipped unit list, and
+show flagged pages for the player to confirm. Before trusting it, re-validate
+tesseract.js against the 166 labelled pages (v2 + run 1). Geometry is only known
+for 1180×2556; other screen sizes need a scaled layout and a recording to test.
+
 First pass, superseded: 166 stills → 157 pages → 57 name clusters, "the same 54
 as run 1 plus 3". Outputs in `data/analysis/box_v2/`, `pages_v2/`,
 `box_reading_v2.json`, `visits_v2/`.
