@@ -3,22 +3,40 @@
   "team_cost_limit": 200,
   "units": [
     {
+      "unit_id": 10866,
+      "level": 150,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 10,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
       "unit_id": 11066,
       "level": 150,
       "luck": 0,
       "dupes": 0,
       "limit_break": 10,
       "abilities_unlocked": [],
-      "manually_added": true
+      "manually_added": false
     },
     {
-      "unit_id": 10966,
+      "unit_id": 10796,
+      "level": 150,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 10,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12666,
       "level": 100,
       "luck": 0,
       "dupes": 0,
       "limit_break": 0,
       "abilities_unlocked": [],
-      "manually_added": true
+      "manually_added": false
     },
     {
       "unit_id": 12416,
@@ -27,7 +45,52 @@
       "dupes": 0,
       "limit_break": 7,
       "abilities_unlocked": [],
-      "manually_added": true
+      "manually_added": false
+    },
+    {
+      "unit_id": 10956,
+      "level": 105,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 1,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11016,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10926,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12406,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10486,
+      "level": 105,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 1,
+      "abilities_unlocked": [],
+      "manually_added": false
     },
     {
       "unit_id": 10906,
@@ -36,7 +99,88 @@
       "dupes": 0,
       "limit_break": 0,
       "abilities_unlocked": [],
-      "manually_added": true
+      "manually_added": false
+    },
+    {
+      "unit_id": 11056,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10916,
+      "level": 105,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 1,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12606,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12236,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10976,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10756,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10966,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10746,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10936,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
     },
     {
       "unit_id": 12636,
@@ -45,7 +189,565 @@
       "dupes": 0,
       "limit_break": 0,
       "abilities_unlocked": [],
-      "manually_added": true
+      "manually_added": false
+    },
+    {
+      "unit_id": 11036,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10496,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11245,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10476,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10786,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12365,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 13455,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 13455,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 13455,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10506,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10826,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11046,
+      "level": 100,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11105,
+      "level": 70,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11174,
+      "level": 31,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10775,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11135,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11135,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11055,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10924,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10934,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10934,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10934,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10934,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12344,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12344,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12344,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10174,
+      "level": 50,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11174,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10294,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10584,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10284,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10284,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10274,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10274,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10274,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10825,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12615,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12615,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11074,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11074,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11074,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 11074,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12124,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10194,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10194,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12244,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10314,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10814,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12384,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10154,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10144,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10804,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10764,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10764,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10764,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10184,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12334,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 12334,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10244,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10264,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10264,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
+    },
+    {
+      "unit_id": 10264,
+      "level": 1,
+      "luck": 0,
+      "dupes": 0,
+      "limit_break": 0,
+      "abilities_unlocked": [],
+      "manually_added": false
     }
   ]
 }

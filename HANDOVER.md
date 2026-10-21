@@ -391,14 +391,23 @@ motion detection. Naming `box_{saved:03d}_{seconds:07.2f}s.png`.
 
 ### The second recording — PROCESSED 2026-10-21 (afternoon session)
 
-Result: 166 stills → **157 pages** → **57 name clusters**, 21 trusted. Outputs in
-`data/analysis/box_v2/`, `pages_v2/`, `box_reading_v2.json`. A separate capture
-from v1 (status-bar clock 13:41 vs 11:09), but it visits **the same 54
-characters plus 3**. All 54 shared characters read identically, margins within
-±0.006 — consistency, not correctness: the confirmed-wrong reads repeat. Of the
-3 new ones (checked by eye) only Hizashi *Brotherly Fate* is right; Tsume *A
-Brave Mother* and Zabuza *The Demon Returns* are misread. **Union = 57 of 83.**
-Full detail in the memory file.
+**Corrected later the same session — the first pass below was wrong.** The
+user pointed out duplicates. Each move to the next unit fades to black; v2 has
+exactly **83 black transitions → 83 visits** (2.1–4.3 s each). The old pipeline
+merged duplicates, and the name-banner crop includes "No.###" and the stars, so
+it also merged rarity forms of one character. `scripts/box_visits.py` now splits
+on the blacks: one page per visit.
+
+All 83 visits were then **labelled by eye** (name, title, No., level) →
+`data/analysis/visits_v2_truth.json`: **61 distinct units, 57 characters, 22
+extra copies.** Scored against that, the **icon matcher is right 32/83**, and
+only 15/34 in the "trusted" ≥0.05 band — so the margin rule does not hold.
+**`data/rosters/example.json` is now the real roster** (83 copies, 61 unit_ids),
+and all 5 hand-entered placeholder units reappear with identical level and LB.
+
+First pass, superseded: 166 stills → 157 pages → 57 name clusters, "the same 54
+as run 1 plus 3". Outputs in `data/analysis/box_v2/`, `pages_v2/`,
+`box_reading_v2.json`, `visits_v2/`.
 
 Original notes on the file, kept for reference:
 
