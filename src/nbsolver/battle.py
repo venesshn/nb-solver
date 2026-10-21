@@ -25,9 +25,11 @@ Position = tuple[float, float]
 class BattleRules(BaseModel):
     """Numbers no data source publishes. Every default here is a guess."""
 
+    # What a jutsu costs is published per unit (Jutsu.chakra); only the refill is unknown.
     chakra_per_turn: float = 1.0
+    # Missions reach at least tier 6, and what any tier is worth is undocumented.
     slip_damage_by_tier: dict[int, int] = Field(
-        default_factory=lambda: {1: 200, 2: 400, 3: 600, 4: 800}
+        default_factory=lambda: {1: 200, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200}
     )
     slip_damage_default: int = 200
     knockback_distance: float = 1.0
