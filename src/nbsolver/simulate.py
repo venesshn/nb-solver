@@ -34,8 +34,8 @@ from nbsolver.passives import Passive, parse_passive
 
 Position = tuple[float, float]
 
-# How far a unit may travel before it acts, in map tiles.
-MOVE_REACH = 3.0
+# Units can move anywhere on the map before acting (player-confirmed).
+MOVE_REACH = 99.0
 # How close it must then be to hit something, by its attack range.
 ATTACK_REACH = {
     AttackRange.SHORT: 1.5,
@@ -45,13 +45,15 @@ ATTACK_REACH = {
 }
 # A multi-target jutsu catches enemies this close to its main target.
 SPLASH = 2.5
-# How far an enemy closes in on its own turn.
-ENEMY_STEP = 1.5
+# Enemies can move anywhere (player-confirmed); their range is what limits them.
+ENEMY_STEP = 99.0
 # Script-less enemies publish no rhythm; this is a guess at one.
 PLAIN_INTERVAL = 3
-# Hits per attack are not published; they decide when a combo passes 15. Results
-# barely moved between 1 and 7 on the validation stage, so the cautious 1 stays.
-ATTACK_HITS = 1
+# Hits per attack are not published; they decide when a combo passes 15 for the
+# extra chakra bar. The player says a combination "sometimes" passes 15; these
+# make a full three-unit combination pass it, about one attack in five.
+ATTACK_HITS = 6
+JUTSU_HITS = 10
 # "Perimeter Barrier" ships with no description; on record it is a 2.5x attack.
 PERIMETER_BARRIER = 2.5
 # Completing a map gives back half the health lost so far: measured on both map
@@ -61,6 +63,16 @@ MAP_RESTORE = 0.5
 PLAIN_SKILL_EVERY = 2
 # How much further than its own range an ally can be and still join a combination.
 COMBO_REACH_BONUS = 0.0
+
+
+# A support comes in on its pair's turn when its best move beats the front unit's by
+# this much; how much a power-up is worth against a hit when comparing the two.
+SWITCH_MARGIN = 0.05
+POWER_UP_VALUE = 0.6
+# Where a unit stands to attack: this many spots tried around the target, and how
+# far apart a player keeps units so one enemy attack can't catch them all.
+SPOT_ANGLES = 12
+SPREAD = 2.5
 
 
 def battle_rules() -> BattleRules:
@@ -76,10 +88,24 @@ def battle_rules() -> BattleRules:
 MAX_ACTIONS = 400
 
 UNVERIFIED = (
-    "Movement and attack distances are estimates, not published values.",
-    "Enemies close in 1.5 tiles on their own turn; the game's step is not published.",
-    "Enemies with no published script attack every 3 turns, alternating with their skill.",
+    (
+        "Your units and enemies can move anywhere (player-confirmed); attack"
+        " distances themselves are estimates."
+    ),
+    (
+        "An enemy's attack hits every one of your units inside its range"
+        " (player-confirmed); how big that range is on the map is an estimate."
+    ),
+    (
+        "Enemies with no published script (most ordinary enemies) attack every 3"
+        " turns, alternating with their skill."
+    ),
+    (
+        "Hits per attack are not published: 6 per attack and 10 per jutsu, so a full"
+        " combination passes 15 hits about one attack in five, as the player reports."
+    ),
     "Multi-target jutsu catch enemies near the main target; real shapes vary.",
+    "Jutsu that heal by a share of the damage dealt are not modelled yet.",
     (
         "Field skills use the weakest end of their range, as if allies stood at the"
         " edge of the circle."
@@ -92,13 +118,21 @@ UNVERIFIED = (
         "Combination attacks join when an ally stands within its own attack range"
         " of the target; the game's exact joining rule is not published."
     ),
-    "A support switches in only when the unit in front of it is immobilised.",
+    (
+        "A support switches in on its pair's turn and still acts that turn"
+        " (player-confirmed); it does so when its best move beats the front unit's."
+    ),
 )
 
 TARGETS_RE = re.compile(r"(\d+)\s*enem", re.IGNORECASE)
 ALL_RE = re.compile(r"\ball enemies\b", re.IGNORECASE)
 HEAL_FLAT_RE = re.compile(
-    r"(?:restores?|recovers?)[^.]*?([\d,]{3,})\s*HP", re.IGNORECASE
+    r"(?:restores?|recovers?)[^.]*?([\d,]{3,})\s*(?:of (?:own|your) )?(?:HP|health)",
+    re.IGNORECASE,
+)
+# "Puts up a barrier that protects you from 2500 damage worth of attacks".
+BARRIER_GIVE_RE = re.compile(
+    r"barrier that protects you from ([\d,]+) damage", re.IGNORECASE
 )
 HEAL_PERCENT_RE = re.compile(
     r"(?:restores?|recovers?)[^.]*?(\d+)%\s*of\s*(?:max(?:imum)?\s*)?(?:health|HP)",
@@ -177,6 +211,13 @@ class Move:
             default=0.0,
         )
 
+    @property
+    def barrier(self) -> float:
+        """Damage the barrier it puts up on its user soaks, if any."""
+        return sum(
+            e.magnitude or 0.0 for e in self.grants if e.kind == EffectKind.BARRIER
+        )
+
 
 def parse_move(jutsu: Jutsu | None, *, secret: bool = False) -> Move | None:
     if jutsu is None or jutsu.chakra is None:
@@ -198,6 +239,15 @@ def parse_move(jutsu: Jutsu | None, *, secret: bool = False) -> Move | None:
         ):
             effect = effect.model_copy(update={"magnitude": float(found.group(1))})
         grants.append(effect)
+    if wall := BARRIER_GIVE_RE.search(text):
+        grants.append(
+            Effect(
+                kind=EffectKind.BARRIER,
+                mode=EffectMode.GRANT,
+                magnitude=float(wall.group(1).replace(",", "")),
+                source=text,
+            )
+        )
     targets = 99 if ALL_RE.search(text) else 1
     if found := TARGETS_RE.search(text):
         targets = int(found.group(1))
@@ -429,6 +479,9 @@ def _spawn(
                     technique.multiplier = PERIMETER_BARRIER
             fighter.attack_interval = PLAIN_INTERVAL
             fighter.countdown = PLAIN_INTERVAL if fighter.ai is None else None
+            fighter.reach = ATTACK_REACH.get(
+                stats.range, ATTACK_REACH[AttackRange.SHORT]
+            )
             fighters.append(fighter)
             keys_by_entry[-1].append(key)
             if stats.carries:
@@ -437,17 +490,20 @@ def _spawn(
 
 
 def _boss_plan(
-    wave: list[EnemyStats], keys_by_entry: list[list[str]]
+    wave: list[EnemyStats],
+    keys_by_entry: list[list[str]],
+    map_marks_boss: bool = False,
 ) -> tuple[set[str], dict[str, list[str]]]:
     """Who must fall to clear a boss map, and the parts each giant's head takes down.
 
-    The map data marks bosses explicitly; only when it marks none does any enemy
-    with a script count. A giant boss is listed as several same-named boss lines,
-    one per part, each acting on its own; the first is its head, and beating the
-    head finishes the whole giant (confirmed by the player).
+    The map data marks bosses explicitly. When the map marks one anywhere, a wave
+    without it holds no boss and must simply be cleared; only a map that marks
+    none falls back to any enemy with a script. A giant boss is listed as several
+    same-named boss lines, one per part, each acting on its own; the first is its
+    head, and beating the head finishes the whole giant (confirmed by the player).
     """
     marked = [i for i, s in enumerate(wave) if s.role == "Boss"]
-    if not marked:
+    if not marked and not map_marks_boss:
         marked = [i for i, s in enumerate(wave) if s.is_boss]
     by_name: dict[str, list[int]] = {}
     for i in marked:
@@ -525,6 +581,36 @@ def _estimate(attacker: Fighter, target: Fighter, multiplier: float) -> int:
     )
 
 
+def _attack_spot(
+    state: BattleState, actor: Fighter, target: Fighter, reach: float
+) -> Position:
+    """Where a player would stand to hit `target`: inside its own reach, as few enemy
+    ranges as possible, and apart from allies, since an enemy's attack catches every
+    unit inside its range. Standing around the target also keeps allies in combo reach.
+    """
+    if math.dist(actor.position, target.position) > MOVE_REACH + reach:
+        return _approach(actor.position, target.position, reach)
+    allies = [m.position for m in state.team.fielded() if m is not actor]
+    enemies = [e for e in state.living_enemies if e is not target]
+    best: tuple[float, Position] | None = None
+    for step in range(SPOT_ANGLES):
+        angle = 2 * math.pi * step / SPOT_ANGLES
+        spot = (
+            round(target.position[0] + reach * math.cos(angle), 2),
+            round(target.position[1] + reach * math.sin(angle), 2),
+        )
+        if math.dist(actor.position, spot) > MOVE_REACH:
+            continue
+        crowding = sum(max(0.0, SPREAD - math.dist(spot, a)) for a in allies)
+        exposure = sum(
+            1 for e in enemies if math.dist(spot, e.position) <= max(1.0, e.reach)
+        )
+        score = crowding + exposure + 0.01 * math.dist(actor.position, spot)
+        if best is None or score < best[0]:
+            best = (score, spot)
+    return best[1] if best else _approach(actor.position, target.position, reach)
+
+
 def _approach(start: Position, goal: Position, stop_short: float) -> Position:
     """Walk toward `goal`, stopping `stop_short` away, never past MOVE_REACH."""
     span = math.dist(start, goal)
@@ -578,10 +664,21 @@ def decide(
     `hold` lists enemies not to finish off yet, e.g. a boss whose defeat would
     end the map before every drop has been collected.
     """
+    _, order, said = _choose(state, member, bosses, hold)
+    return order, said
+
+
+def _choose(
+    state: BattleState,
+    member: Member,
+    bosses: set[str],
+    hold: set[str] | None = None,
+) -> tuple[float, Order, str]:
+    """`decide`, with how much the chosen action is worth, so pairs can compare."""
     actor = state.team.member(member.key)
     living = state.living_enemies
     if actor is None or not living:
-        return Order(fighter=member.key), "waits"
+        return 0.0, Order(fighter=member.key), "waits"
     hold = hold or set()
 
     reach = MOVE_REACH + member.reach
@@ -612,7 +709,9 @@ def decide(
                 grants=move.grants,
                 label=move.name,
             )
-            return order, f"uses {kind} {move.name} to heal the team"
+            missing = state.team.max_health - state.team.health
+            worth = 1.0 + min(amount, missing) / max(1, state.team.max_health)
+            return worth, order, f"uses {kind} {move.name} to heal the team"
 
     # A power-up pays for itself when there is plenty left to hit and none is running.
     boosted = actor.has(EffectKind.ATTACK_BOOST, EffectMode.GRANT)
@@ -636,15 +735,42 @@ def decide(
                 label=move.name,
             )
             return (
+                POWER_UP_VALUE,
                 order,
                 f"uses {kind} {move.name} to power up (+{move.boost:g}% attack)",
+            )
+
+    # A barrier is worth raising when none is up; it soaks hits on its user.
+    for kind, move in options:
+        if move and not move.strikes and move.barrier and actor.barrier <= 0:
+            order = Order(
+                fighter=member.key,
+                jutsu=True,
+                secret=move.secret,
+                chakra_cost=move.chakra,
+                grants=move.grants,
+                label=move.name,
+            )
+            worth = (
+                2
+                * min(move.barrier, state.team.max_health)
+                / max(1, state.team.max_health)
+            )
+            return (
+                worth,
+                order,
+                f"uses {kind} {move.name} to raise a {move.barrier:g} barrier",
             )
 
     if not in_range:
         nearest = min(living, key=lambda e: math.dist(actor.position, e.position))
         spot = _approach(actor.position, nearest.position, member.reach)
         said = f"{describe_move(actor.position, spot)} toward {nearest.name} and stalls"
-        return Order(fighter=member.key, move_to=spot), f"{said} (nothing in reach yet)"
+        return (
+            0.0,
+            Order(fighter=member.key, move_to=spot),
+            f"{said} (nothing in reach yet)",
+        )
 
     best: tuple[float, Order, str] | None = None
     for target in in_range:
@@ -688,7 +814,8 @@ def decide(
                 value += min(_estimate(ally, target, share), target.health) / max(
                     1, target.max_health
                 )
-            if ATTACK_HITS * (1 + len(joiners)) > state.rules.combo_hits_for_bonus:
+            own_hits = JUTSU_HITS if move else ATTACK_HITS
+            if own_hits + ATTACK_HITS * len(joiners) > state.rules.combo_hits_for_bonus:
                 value += 0.3
             value += 0.25 * _priority(target, bosses)
             # Chakra spent now is chakra not there for the boss.
@@ -701,12 +828,12 @@ def decide(
                     / max(1, state.team.max_health)
                 )
             if best is None or value > best[0]:
-                spot = _approach(actor.position, target.position, member.reach * 0.9)
+                spot = _attack_spot(state, actor, target, member.reach * 0.9)
                 order = Order(
                     fighter=member.key,
                     move_to=spot,
                     target=target.key,
-                    hits=ATTACK_HITS,
+                    hits=JUTSU_HITS if move else ATTACK_HITS,
                     multiplier=move.multiplier if move else 1.0,
                     percent=move.percent if move else 0.0,
                     self_cost=move.self_cost if move else 0.0,
@@ -730,10 +857,12 @@ def decide(
                 best = (value, order, f"{said} {target.name}{extra} ({advantage})")
     if best is None:
         nearest = min(living, key=lambda e: math.dist(actor.position, e.position))
-        return Order(
-            fighter=member.key
-        ), f"holds back to keep {nearest.name}'s drop in play"
-    return best[1], best[2]
+        return (
+            0.0,
+            Order(fighter=member.key),
+            f"holds back to keep {nearest.name}'s drop in play",
+        )
+    return best
 
 
 def _swap_in(state: BattleState, key: str) -> str | None:
@@ -743,6 +872,30 @@ def _swap_in(state: BattleState, key: str) -> str | None:
     if fighter is None or partner is None or fighter.can_act or not partner.can_act:
         return None
     return partner.key if state.team.switch(key) else None
+
+
+def _switch_if_better(
+    state: BattleState,
+    members: dict[str, Member],
+    key: str,
+    staying: float,
+    bosses: set[str],
+    hold: set[str],
+) -> tuple[str, tuple[float, Order, str]] | None:
+    """On its pair's turn the support may come in (player-confirmed); it does when
+    its own best move is clearly worth more than the front unit's."""
+    team = state.team
+    partner = team.buddy(key)
+    if partner is None or not partner.can_act or partner.key not in members:
+        return None
+    before, spot = list(team.on_field), partner.position
+    if not team.switch(key):
+        return None
+    choice = _choose(state, members[partner.key], bosses, hold)
+    if choice[0] > staying + SWITCH_MARGIN:
+        return partner.key, choice
+    team.on_field, partner.position = before, spot
+    return None
 
 
 @dataclass
@@ -838,12 +991,13 @@ def _play_map(
 
     waves = _waves(battle_map, entries)
     boss_rule = "boss" in (battle_map.clear or "").lower()
+    marks_boss = any(e.role == "Boss" for e in entries)
     for wave_number, wave in enumerate(waves, start=1):
         state.enemies, carriers, keys_by_entry = _spawn(
             battle_map, wave, f"m{number}w{wave_number}"
         )
         run.drops_seen += len(carriers)
-        bosses, parts = _boss_plan(wave, keys_by_entry)
+        bosses, parts = _boss_plan(wave, keys_by_entry, marks_boss)
         if record:
             for e in state.enemies:
                 run.roster[e.key] = {
@@ -869,7 +1023,12 @@ def _play_map(
                 collecting = objective is ConditionKind.DROP_COMPLETE and boss_rule
                 if collecting and any(not state.fighter(c).defeated for c in carriers):
                     hold = set(bosses)
-                order, said = decide(state, member, bosses, hold)
+                value, order, said = _choose(state, member, bosses, hold)
+                if swapped is None:
+                    better = _switch_if_better(state, members, key, value, bosses, hold)
+                    if better is not None:
+                        swapped, (value, order, said) = better
+                        key, member = swapped, members[swapped]
                 if swapped is not None:
                     said = f"switches in for its partner, then {said}"
                 events = take_turn(state, order, rng)

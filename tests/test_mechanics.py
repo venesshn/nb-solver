@@ -275,3 +275,57 @@ def test_combination_boost_scales_only_combination_hits():
     events = take_turn(state, Order(fighter="a", target="e"), random.Random(11))
     joined = [e for e in events if e.kind == "damage" and "combination" in e.note]
     assert joined and joined[0].amount in (1600, 2400)
+
+
+# ---------- player-confirmed rules: area attacks, switching, spreading ----------
+
+
+def test_an_enemy_attack_hits_every_unit_inside_its_range():
+    from nbsolver.battle import _plain_turn
+
+    near = fighter("a", Side.PLAYER, (0.0, 0.0))
+    also = fighter("b", Side.PLAYER, (1.0, 0.0))
+    far = fighter("c", Side.PLAYER, (9.0, 9.0))
+    enemy = fighter("e", Side.ENEMY, (0.0, 1.0), reach=2.0, countdown=1)
+    state = battle([near, also, far], [enemy])
+    events = _plain_turn(state, enemy, random.Random(0))
+    hit = {e.target for e in events if e.kind == "damage"}
+    assert hit == {"a", "b"}
+
+
+def test_a_support_switches_in_when_its_move_is_worth_more():
+    import json
+    from pathlib import Path
+
+    from nbsolver.models import Unit
+    from nbsolver.simulate import Member, _choose, _switch_if_better, build_team
+
+    data = Path(__file__).resolve().parents[1] / "data" / "units.json"
+    rows = json.loads(data.read_text(encoding="utf-8"))
+    u = {
+        r["unit_id"]: Unit.model_validate(r)
+        for r in rows
+        if r["unit_id"] in (10314, 11066)
+    }
+    weak = Member("weak", u[10314], 1)
+    strong = Member("strong", u[11066], 150)
+    team = build_team([weak], [strong])
+    foe = fighter("e", Side.ENEMY, (1.0, 1.0), max_health=3000, health=3000)
+    state = BattleState(team=team, enemies=[foe])
+    members = {"weak": weak, "strong": strong}
+    staying = _choose(state, weak, set())[0]
+    switched = _switch_if_better(state, members, "weak", staying, set(), set())
+    assert switched is not None and switched[0] == "strong"
+    assert team.on_field == ["strong"]
+
+
+def test_attackers_spread_around_their_target():
+    from nbsolver.simulate import _attack_spot
+
+    actor = fighter("a", Side.PLAYER, (0.0, 0.0))
+    ally = fighter("b", Side.PLAYER, (4.0, 3.0))
+    target = fighter("e", Side.ENEMY, (5.0, 5.0))
+    state = battle([actor, ally], [target])
+    spot = _attack_spot(state, actor, target, 1.5)
+    assert abs(((spot[0] - 5) ** 2 + (spot[1] - 5) ** 2) ** 0.5 - 1.5) < 0.01
+    assert ((spot[0] - 4) ** 2 + (spot[1] - 3) ** 2) ** 0.5 >= 2.0

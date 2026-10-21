@@ -255,6 +255,8 @@ class Team(BaseModel):
         if leaving.has(EffectKind.SWITCH_SEAL, EffectMode.INFLICT):
             return False
         self.on_field[self.on_field.index(key)] = partner.key
+        # The support steps into the spot the front unit was standing on.
+        partner.position = leaving.position
         return True
 
 
@@ -949,6 +951,22 @@ def _self_cast(state: BattleState, enemy: Fighter, technique: Technique) -> list
     return events
 
 
+def _victims(state: BattleState, enemy: Fighter, target: Fighter) -> list[Fighter]:
+    """An enemy's attack catches every player unit inside its range (player-confirmed),
+    and each one hit takes its own damage out of the shared pool."""
+    reach = max(1.0, enemy.reach)
+    if math.dist(target.position, enemy.position) > reach + 0.01:
+        return [target]
+    others = [
+        m
+        for m in state.team.fielded()
+        if m is not target
+        and not m.defeated
+        and math.dist(m.position, enemy.position) <= reach
+    ]
+    return [target, *others]
+
+
 def _fire(
     state: BattleState, enemy: Fighter, node: AiState, rng: random.Random
 ) -> list[Event]:
@@ -968,9 +986,10 @@ def _fire(
             if technique.inflicts:
                 victim = _ai_target(state, enemy, action)
                 if victim is not None:
-                    events += _apply_on_hit(
-                        state, enemy, victim, rng, technique.effects
-                    )
+                    for caught in _victims(state, enemy, victim):
+                        events += _apply_on_hit(
+                            state, enemy, caught, rng, technique.effects
+                        )
             else:
                 events += _self_cast(state, enemy, technique)
             continue
@@ -978,16 +997,20 @@ def _fire(
         target = _ai_target(state, enemy, action)
         if target is None:
             break
+        _close_in(state, enemy, target)
         multiplier = technique.multiplier if technique else 1.0
-        events += resolve_attack(
-            state,
-            enemy,
-            target,
-            multiplier,
-            rng,
-            jutsu=action.kind is ActionKind.SKILL,
-            effects=technique.effects if technique else None,
-        )
+        for caught in _victims(state, enemy, target):
+            events += resolve_attack(
+                state,
+                enemy,
+                caught,
+                multiplier,
+                rng,
+                jutsu=action.kind is ActionKind.SKILL,
+                effects=technique.effects if technique else None,
+            )
+            if state.over:
+                break
         if state.over:
             break
     return events
@@ -1031,30 +1054,42 @@ def _plain_turn(state: BattleState, enemy: Fighter, rng: random.Random) -> list[
     attacks = enemy.skill_uses.get(-1, 0)
     enemy.skill_uses[-1] = attacks + 1
     every = state.rules.plain_skill_every
+    events: list[Event] = []
     if skill is not None and every and attacks % every == every - 1:
-        return resolve_attack(
-            state,
-            enemy,
-            target,
-            skill.multiplier,
-            rng,
-            jutsu=True,
-            effects=skill.effects,
-        )
-    return resolve_attack(state, enemy, target, 1.0, rng)
+        for caught in _victims(state, enemy, target):
+            events += resolve_attack(
+                state,
+                enemy,
+                caught,
+                skill.multiplier,
+                rng,
+                jutsu=True,
+                effects=skill.effects,
+            )
+        return events
+    for caught in _victims(state, enemy, target):
+        events += resolve_attack(state, enemy, caught, 1.0, rng)
+    return events
 
 
-def _close_in(state: BattleState, enemy: Fighter) -> None:
-    """Walk toward the nearest player unit, stopping just short of it."""
+def _close_in(
+    state: BattleState, enemy: Fighter, target: Fighter | None = None
+) -> None:
+    """Walk toward `target` (the nearest player unit by default) until it is within
+    the enemy's own range.
+
+    The player confirmed enemies can move anywhere; what limits them is their range.
+    """
     step = state.rules.enemy_step
     if step <= 0 or enemy.has(EffectKind.MOVEMENT_RESTRICTION, EffectMode.INFLICT):
         return
     fielded = [m for m in state.team.fielded() if not m.defeated]
     if not fielded:
         return
-    target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
+    if target is None:
+        target = min(fielded, key=lambda m: math.dist(m.position, enemy.position))
     span = math.dist(enemy.position, target.position)
-    travel = min(step, max(0.0, span - 1.0))
+    travel = min(step, max(0.0, span - max(1.0, enemy.reach)))
     if span and travel:
         ratio = travel / span
         enemy.position = (

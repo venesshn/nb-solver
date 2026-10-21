@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **200 passing** |
+| Tests | **pytest** — **205 passing, 1 expected fail (known gap)** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             16 files, 200 tests
+tests/             16 files, 206 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -684,10 +684,12 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   front unit's, weakest end of the range), buddy skills. Coverage: field 93%,
   buddy 95%, abilities 75% of clauses; unknown wording is skipped, never guessed.
 - **Solver**: buff jutsu are cast; supports chosen for health within budget;
-  supports switch in when the front unit is immobilised; every objective kind
+  supports switch in on their pair's turn when their move is worth more
+  (and still act); every objective kind
   is judged (combination finish = boss killed by a 3+ unit action; drop complete
   = every carrier defeated, boss held back until then). **Reproduces both
-  user-confirmed clears of e3003: Heart team 100%, Body-only ~25%** (tests).
+  user-confirmed clears of e3003: Heart team 100%** (tests). Body-only: see
+  the CORRECTION below.
 - **Website**: also an abilities-unlocked column and a mission-type filter;
   results note Ninja Road and missing-layout assumptions.
 - **Bosses**: the map data marks bosses explicitly (`role` from the entry's
@@ -695,8 +697,13 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   when Orochimaru falls, not after every Sound Ninja. **Giant bosses** are
   several same-named boss lines, one per part, each acting on its own
   countdown with its own HP; **the first-listed line is the head, and beating
-  the head ends the giant** (user-confirmed; head = first line is inferred from
-  the data, e.g. Gamabunta 50k head + two 300k parts).
+  the head ends the giant** (user-confirmed). Evidence for head = first line:
+  hideoutgacha labels 58 maps 'Boss' + 'Boss part' and in ALL 58 the 'Boss'
+  (head) line is listed first and the parts share its name. The remaining
+  147 multi-line giant occurrences, counted per map variant (127 Ninja Road, 14 Giant Boss Rush, 4 gaiden, 2
+  story) carry no part label, so for them it is still inferred.
+  Boss marking is now read per MAP: a wave without the marked boss must be
+  cleared (it used to fall back to 'any scripted enemy' per wave).
 - **Ninja Road** (user-confirmed rules): **3 teams of 6 from separate copies**,
   each with its **own health bar** carried across the maps it fights; each map
   goes to the team best placed (health × element matchup); **a beaten team is
@@ -714,16 +721,32 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
 - The HUD counter under "MAP 1/3" with a scroll icon counts **drops collected,
   not turns** (seen by eye; `hud_timeline.py` used to call it TURN_BOX). Enemy
   countdowns drop **per unit action** (user-confirmed again).
-- Results now (3 pairs, 50% restore): e3003 Heart 100%; **Body-only 100%
-  without a helper** — the user clears it "almost every time" and usually has
-  no helper. The earlier 32% came from the auto-helper: it picked by raw power
+- **CORRECTION (2026-10-21 night): the Body-only 100% was FALSE.** Wave 1 of
+  e3003 [B] map 3 is four scripted Sound Ninja; reading that wave alone made
+  one the 'boss' (head) and the rest its parts, so killing it ended the map
+  and Orochimaru (wave 6) NEVER spawned (0/20 runs). Only 3 maps affected
+  (e3003 [C]/[B] map 3, e7001 [B] map 3) - unluckily the validation stage.
+  Also found: NO unit heal ever fired (data says 'Restores N health', regex
+  wanted 'HP'; 76 jutsu now parse) and player barriers ('protects you from N
+  damage') did nothing. Fixed all three.
+- User rules applied the same night: units AND enemies move anywhere; an
+  enemy attack hits EVERY unit inside its range (each hit off the shared
+  pool); supports switch in on their pair's turn whenever and still act;
+  combos pass 15 hits 'sometimes' -> ATTACK_HITS 6, JUTSU_HITS 10 (21% of
+  Body attacks). Policy now spreads units around the target (_attack_spot).
+- Body-only NOW: hand-picked team (Lee, Guy, Sakura / Tobirama, Haku,
+  Naruto) 9/20; solver's pick 27% [14-46%]. Heart team 20/20, 93% HP left.
+  User says Body-only is near-certain -> recorded as an xfail test. Likely
+  causes: unlocked abilities (box says 0), life-drain jutsu (10 units, not
+  modelled), policy weaker than a human.
+- (Superseded) Body-only had read 100% without a helper; the earlier 32% came
+  from the auto-helper: it picked by raw power
   (Might Guy 'Deep Crimson Youth': 708 HP, ninjutsu costs 15% of team health).
   Auto-helper is now chosen by PLAY: no helper plus the top 4 by power, 6 quick
   runs each. NR: user has never finished one; the solver agrees (NR #1 stops
   at map 15, NR #10 at map 20).
-- Calibration sweep (unverified knobs, Body-only/Heart, no helper): every knob
-  left both at 100% EXCEPT enemies not closing in (ENEMY_STEP 0 -> Body 51%);
-  the 1.5 estimate is kept. Knobs live in simulate.py (PLAIN_INTERVAL,
+- (Superseded: run on the broken map 3) Calibration sweep: every knob left
+  both at 100% except ENEMY_STEP 0. Knobs live in simulate.py (PLAIN_INTERVAL,
   PLAIN_SKILL_EVERY, ENEMY_STEP, COMBO_REACH_BONUS) and passives.RANGE_POINT.
 - Site: helper defaults to none and remembers the pick (user's friend pool is
   limited). Weekly `.github/workflows/refresh-data.yml` rebuilds the catalogue,
@@ -735,15 +758,17 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   layout, enemy list, source and boost, data restored; re-run was clean.
 - Abilities: user says "some, on main units" but which is unknown; the box
   keeps 0 and the user sets them per unit in the site's Abilities column.
-- **200 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- **205 tests passing (+1 xfail), ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 
 **Known weaknesses (say so to the user, don't hide them)**
 
 - Unpublished numbers stay estimates, listed in `UNVERIFIED` and on the site:
-  movement/attack distances, enemy step, combination joining rule, script-less
-  enemy rhythm (3), hits per attack (1; results insensitive 1–7).
+  attack distances, combination joining rule, script-less enemy rhythm (3;
+  ~75% of distinct enemies, almost all ordinary - 1 of ~1,384 bosses), hits
+  per attack (6, jutsu 10).
+- Body-only e3003 under-predicts the user's near-certain clear (xfail test).
 - Ninja Road: the team-to-map choice is a heuristic; NR #1 still ends at map
   15 in simulation.
 - Two calibration points (both e3003) can't prove accuracy everywhere.

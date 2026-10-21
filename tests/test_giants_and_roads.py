@@ -32,6 +32,47 @@ def test_explicit_boss_marking_wins_over_scripts():
     assert bosses == set(keys[2]) and parts == {}
 
 
+def test_an_early_wave_without_the_marked_boss_must_be_cleared():
+    # e3003 [B] map 3: four scripted Sound Ninja open, Orochimaru arrives in wave 6.
+    # Reading wave 1 alone made a Sound Ninja the "boss" and ended the map early.
+    wave = [enemy("Sound Ninja", 3200) for _ in range(4)]
+    for stats in wave:
+        stats.is_boss = True
+    _, _, keys = _spawn(BattleMap(number=1), wave, "x")
+    assert _boss_plan(wave, keys, map_marks_boss=True) == (set(), {})
+
+
+def test_orochimaru_is_fought_on_the_validation_stage():
+    import json
+    from pathlib import Path
+
+    from nbsolver.missions import MissionCatalogue
+
+    data = Path(__file__).resolve().parents[1] / "data"
+    stage = (
+        MissionCatalogue.load(data / "catalogue.json")
+        .get("e3003")
+        .stage("The Evil Snake Shows its Fangs [B]")
+    )
+    rows = json.loads((data / "units.json").read_text(encoding="utf-8"))
+    units = {r["unit_id"]: Unit.model_validate(r) for r in rows}
+    front = [
+        Member("tsunade", units[11066], 150),
+        Member("deidara", units[12416], 135),
+        Member("helper", units[12666], 100),
+    ]
+    back = [
+        Member("itachi", units[10966], 100),
+        Member("hiruzen", units[10906], 100),
+        Member("hinata", units[12636], 100),
+    ]
+    for seed in range(3):
+        run = play_road(stage, [(front, back)], random.Random(seed), record=True)
+        met = {v["name"] for v in run.roster.values() if v.get("enemy")}
+        if run.won:
+            assert "Orochimaru" in met
+
+
 def test_giant_boss_head_is_the_first_part_and_takes_the_rest_down():
     wave = [
         enemy("Gamabunta", 50000, "Boss"),
