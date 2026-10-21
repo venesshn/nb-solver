@@ -201,13 +201,9 @@ Rebirth-only units, excluded by `load_units(revival_only=True)`.
 - `data/portraits/*.webp` — **551 icons**, 128×128 RGBA, plus `index.json` = `{slug: icon}`
 - `data/rosters/example.json` — **only 5 units**; this is the product blocker
 - `data/cache/missions/*.json` (166), `data/cache/hideout/*.html` (166)
-- `data/analysis/box/*.png` — 165 stills from recording **v1**
-- `data/analysis/pages/*.png` — **138 per-character detail pages** from v1
+- `data/analysis/box/*.png` — 165 stills from the recording
+- `data/analysis/pages/*.png` — **138 per-character detail pages**
 - `data/analysis/box_reading.json` — output of `read_box.py`
-- `data/analysis/box_v1/`, `pages_v1/`, `box_reading_v1.json` — **frozen copies of
-  the v1 results**, kept because `box_scan.py` and `box_pages.py` both wipe their
-  output directories on every run. v1 is the only dataset whose reads the user has
-  confirmed, so it stays as the accuracy benchmark
 
 ---
 
@@ -362,18 +358,6 @@ viable) and **shows LEVEL but NOT abilities**. So only two things need reading p
 page: **which unit**, and **what level**. Cost, abilities, HP, ATK and element all
 come from `data/units.json` once the unit is identified.
 
-### The recordings
-
-| | v1 (processed) | **v2 (new, not yet processed)** |
-|---|---|---|
-| Path | consumed already | `C:\Users\venes\Downloads\621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy.mov` |
-| Resolution | 1180×2556 | **1180×2556 — identical, so the ICON and NAME boxes carry over unchanged** |
-| Frame rate | — | 60.03 fps |
-| Length | ~270 s | **238.8 s** (14,335 frames) |
-| Characters | 54 of 83 | unknown — the user was asked to cover all 83 |
-
-v2 opens cleanly in OpenCV (verified). **It has not been scanned yet.**
-
 ### The pipeline as built
 
 ```
@@ -383,11 +367,6 @@ screen recording
   -> read_box.py   -> 54 named characters + confidence         data/analysis/box_reading.json
 ```
 
-**Both `box_scan.py` and `box_pages.py` delete their output directory first.**
-Running them on v2 destroys the v1 stills and pages. v1 has been copied to
-`box_v1/`, `pages_v1/` and `box_reading_v1.json` — **do not delete those**, they
-are the benchmark the confirmed accuracy figures were measured on.
-
 `box_scan.py`: `SAMPLE_FPS=4.0`, `STILL=1.2`, `NOVEL=4.0`, `MAX_GAP_SECONDS=1.5`.
 Writes **full-resolution** frames; the 160×284 grey thumbnail is only used for
 motion detection. Naming `box_{saved:03d}_{seconds:07.2f}s.png`.
@@ -395,6 +374,53 @@ motion detection. Naming `box_{saved:03d}_{seconds:07.2f}s.png`.
 `box_pages.py`: groups consecutive stills, new run when mean abs diff > `NEW_PAGE
 = 18.0`, keeps the sharpest of each run by Laplacian variance. Result:
 "165 stills -> 138 pages", min 1 / median 1 / max 5 frames per page.
+
+> **DESTRUCTIVE — read before re-running either script.** `box_scan.py` clears
+> `*.png` from `data/analysis/box/` and `box_pages.py` does `rmtree` on
+> `data/analysis/pages/`. Both output directories are **hard-coded**; only the
+> input video is an argument. Running them on a new recording overwrites the
+> previous run in place.
+>
+> **Run 1 is already archived** — `data/analysis/box_v1/` (165 stills),
+> `data/analysis/pages_v1/` (138 pages) and `data/analysis/box_reading_v1.json`.
+> That archive is the only copy of the dataset every confirmed match in this
+> document rests on. **Do not delete or overwrite the `_v1` files.**
+>
+> Before a third recording, give both scripts an output-directory argument
+> rather than archiving by hand again.
+
+### The second recording (new, 2026-10-21, NOT yet processed)
+
+It exists in **two copies**, both in `C:\Users\venes\Downloads\`, both decoding
+fine. Same stem: `621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy`.
+
+| | `.mov` | `.mp4` |
+|---|---|---|
+| Size | **431.3 MB** | 95.0 MB |
+| Resolution | 1180×2556 | 1180×2556 |
+| Frame rate | 60.03 fps | 60.00 fps |
+| Frames | 14,335 | 14,299 |
+| Duration | 238.8 s | 238.3 s |
+| First-frame sharpness | 715.9 | 713.6 |
+
+**Use the `.mov`** — it is the original capture at ~4.5× the bitrate; the `.mp4`
+is a transcode of it. Measured sharpness is near-identical (715.9 vs 713.6), so
+the transcode is not visibly degrading anything and the `.mp4` is a fine
+fallback if the `.mov` gives trouble.
+
+**Resolution is identical to the first recording**, so **`ICON` and `NAME` should
+carry over unchanged** — but verify that on a page from *this* recording rather
+than assuming it.
+
+**Measured, worth noting:** 238.8 s. If it covers all 83 units that is **2.9 s per
+character**, against 5.0 s per character in the first recording (270 s / 54).
+So it is *faster* per unit, not slower. The advice given was to pause about a
+second on each — 2.9 s is still workable, but if `box_pages.py` yields far fewer
+than 83 pages, or many pages come out blurred, under-sampling is the first thing
+to suspect. **Do not assume it covers 83; count the pages and check.**
+
+Unknown until asked or measured: whether the player kept a fixed sort order and
+skipped nobody. That matters a lot — see the sequence trick in §8.
 
 ### Portrait library — complete and validated
 
@@ -505,16 +531,16 @@ match at one known scale.**
 
 ### Then
 
-4. **Process recording v2** (path in the table above):
-   `python scripts/box_scan.py "C:\Users\venes\Downloads\621D54D7-6AC5-4490-92F2-2E7D08C49467 Copy.mov"`
-   then `box_pages.py`, then `read_box.py`. Check how many characters it visits
-   and whether the count approaches 83. Compare against `box_reading_v1.json` —
-   **characters appearing in both recordings with consistent reads are strong
-   confirmations**, and that cross-check may rescue entries that were shaky in v1.
+4. **Process the second recording.** Run 1 is already archived as `*_v1`, so just
+   run `box_scan.py` → `box_pages.py` → `read_box.py` on the `.mov`. Compare:
+   how many pages, how many distinct characters, how the confidence margins
+   compare to run 1's (top 4 correct, bottom 4 of 5 wrong). Run 1's 54 confirmed
+   names in `box_reading_v1.json` are a **free regression test** — any character
+   appearing in both recordings should be read the same way twice.
 5. **Read the level.** Tesseract has already failed on this stylised font — do
    **not** retry it. Cut digit templates from a few pages and match; levels are a
    small closed set (1–150).
-6. **If v2 still falls short of 83**, ask for another pass. Recording advice
+6. **If coverage is still short of 83**, ask for another pass. Recording advice
    already given to the user:
    - Sort the box by the default order and don't change it mid-recording. **If the
      order is deterministic and nobody is skipped, the sequence itself carries
@@ -527,9 +553,10 @@ match at one known scale.**
    - Set the 4★+ filter before starting and leave it alone.
    - One continuous recording ideally; if split, say where.
 7. **Write the real roster** to `data/rosters/example.json`, replacing the 5-unit
-   placeholder. Keep cost / abilities / HP / ATK sourced from `data/units.json` by
-   **`unit_id`** — units are keyed by unit_id, never by name or slug, because many
-   units share a name.
+   placeholder. Merge both recordings — between them they may cover all 83 even
+   if neither does alone. Keep cost / abilities / HP / ATK sourced from
+   `data/units.json` by **`unit_id`** — units are keyed by unit_id, never by name
+   or slug, because many units share a name.
 
 ### Then, the engine (ordered by value)
 
@@ -589,8 +616,9 @@ match at one known scale.**
 
 **In progress**
 
-- Verifying the icon box by eye; **processing recording v2**; reading each page's
-  **level**
+- A **second recording exists and is unprocessed** (see §7)
+- Reading each page's **level**; verifying the icon box by eye; reaching full
+  coverage of all 83 units
 
 **Not started**
 
@@ -600,6 +628,6 @@ match at one known scale.**
 
 **Open questions for the user**
 
-- Does recording v2 cover all 83 units, and did it follow the fixed-sort-order
-  advice? (Ask only if the processed count comes out short.)
+- Does the second recording cover all 83 units, in a fixed sort order, with
+  nobody skipped? Measure it, and ask if the measurement is ambiguous.
 - Team cost limit: assumed 200 — needs confirming.
