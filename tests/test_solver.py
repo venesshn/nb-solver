@@ -106,15 +106,14 @@ def test_confirmed_clear_is_reproduced():
     front = [
         Member("tsunade", u[11066], 150),
         Member("deidara", u[12416], 135),
-        Member("itachi", u[10966], 100),
         helper_member(u[12666]),
     ]
     back = [
+        Member("itachi", u[10966], 100),
         Member("hiruzen", u[10906], 100),
         Member("hinata", u[12636], 100),
-        None,
-        None,
     ]
+    assert len(front) == len(back) == 3  # always three pairs, helper in front
     wins = sum(
         play_stage(stage(), front, back, random.Random(s)).won for s in range(30)
     )
@@ -163,3 +162,25 @@ def test_losing_is_reported_as_not_found_with_advice():
     report = solve(stage(), roster, units(), helper=None, tries=6)
     assert report["status"] == "not_found" and report["message"] == NOT_FOUND
     assert report["recommendations"]
+
+
+def test_teams_are_always_three_pairs():
+    roster = Roster.load(DATA / "rosters" / "example.json")
+    with_helper = solve(stage(), roster, units(), tries=6)
+    team = with_helper["team"]
+    assert team["helper"] is not None
+    assert len(team["front"]) == 2 and len(team["back"]) == 3
+    alone = solve(stage(), roster, units(), helper=None, tries=6)
+    assert len(alone["team"]["front"]) == 3 and len(alone["team"]["back"]) == 3
+
+
+def test_completing_a_map_restores_half_the_missing_health():
+    """Measured on the player's e3003 clear: 8540 -> 8918 and 8026 -> 8661 of 9296."""
+    from nbsolver.simulate import _restore, make_squad
+
+    u = units()
+    squad = make_squad([Member("a", u[11066], 150)], [None])
+    team = squad.state.team
+    team.health = team.max_health - 756
+    _restore(squad)
+    assert team.max_health - team.health == 378

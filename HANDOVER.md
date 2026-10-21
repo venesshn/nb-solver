@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **191 passing** |
+| Tests | **pytest** — **193 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             15 files, 191 tests
+tests/             15 files, 193 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -703,12 +703,21 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   out, the others carry on**. **Featured units** per road (2x HP/1.5x STR or
   3x HP/2x STR) parsed from the Fandom "Extra Effects" table → 14 roads have
   boosts; applied to owned units and helpers; advice mentions them.
-- **Every mission**: completing a map restores some health — the figure is
-  unpublished (hideoutgacha says so); **5% estimate**, plus "Restores N health
-  when moving to a new map" abilities. Percentage attacks stop at 1 HP.
-- Results now: e3003 Heart 100%, **Body-only ~94–97%**; NR #1 reaches map 15,
-  NR #10 map 19, later boosted roads fail early without featured units.
-- **191 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- **Every mission**: completing a map restores **half the missing health**,
+  MEASURED on both map changes of the user's e3003 clear recording (8540→8918
+  and 8026→8661 of 9296: exactly 378/756 and 635/1270), plus "Restores N
+  health when moving to a new map" abilities. Percentage attacks stop at 1 HP.
+- **Teams are always 3 pairs (6 units)** — front + support each. A friend's
+  helper is the FRONT of one pair, so the box fills 2 fronts + 3 supports;
+  without a helper, 3 + 3. **Ninja Road teams get no helper.** (User-confirmed;
+  the solver previously fielded up to 4 fronts + 4 supports — that was wrong.)
+- The HUD counter under "MAP 1/3" with a scroll icon counts **drops collected,
+  not turns** (seen by eye; `hud_timeline.py` used to call it TURN_BOX). Enemy
+  countdowns drop **per unit action** (user-confirmed again).
+- Results now (3 pairs, 50% restore): e3003 Heart 100%, **Body-only ~32%**
+  (still clearable, as the user says); NR #1 reaches map 15, NR #10 reaches
+  map 20 of 20; later boosted roads fail early without featured units.
+- **193 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 
@@ -717,12 +726,12 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
 - Unpublished numbers stay estimates, listed in `UNVERIFIED` and on the site:
   movement/attack distances, enemy step, combination joining rule, script-less
   enemy rhythm (3), hits per attack (1; results insensitive 1–7).
-- Ninja Road: the map-change restore (5%) and the team-to-map choice are
-  estimates; NR #1 still ends at map 15 in simulation.
+- Ninja Road: the team-to-map choice is a heuristic; NR #1 still ends at map
+  15 in simulation.
 - Two calibration points (both e3003) can't prove accuracy everywhere.
 - The repo was deleted and recreated with the scrubbed history; old commit
   SHAs verified gone (HTTP 422).
 
 **Open questions for the user**
 
-- How much health completing a map restores (a 5% estimate is in use).
+- None outstanding.

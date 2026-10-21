@@ -21,8 +21,9 @@ from nbsolver.simulate import UNVERIFIED, Member, Run, play_road, play_stage
 
 IMPOSSIBLE = "Not possible to complete - keep grinding!"
 NOT_FOUND = "No winning strategy found."
-FRONT_SLOTS = 3
-BACK_SLOTS = 4
+# A team is always three pairs: a front unit and the support behind it. A
+# friend's helper takes the front of one pair, so the box then fills two fronts.
+PAIRS = 3
 SHORTLIST = 10
 FINALISTS = 3
 # Conditions the simulator cannot judge yet; the report says so rather than guess.
@@ -333,7 +334,7 @@ def shortlist(
     top = ranked[:SHORTLIST] + [c for c in required if c not in ranked[:SHORTLIST]]
 
     plans = []
-    size = min(FRONT_SLOTS, len(top))
+    size = min(PAIRS - (1 if helper else 0), len(top))
     for front in itertools.combinations(top, size):
         front = list(front)
         budget = limit - sum(c.cost for c in front)
@@ -345,7 +346,8 @@ def shortlist(
             budget = min(budget, condition.max_cost - sum(c.cost for c in front))
         if budget < 0:
             continue
-        back = _fill_back(front, pool, budget, BACK_SLOTS)
+        # One support behind every front unit, the helper's included.
+        back = _fill_back(front, pool, budget, PAIRS)
         plan = Plan(front=front, back=back, helper=helper)
         if _legal(plan, limit, condition):
             plans.append(plan)
@@ -457,6 +459,9 @@ def solve(
         }
 
     helper_choice: Choice | None = None
+    if teams > 1:
+        # Ninja Road teams are the player's own six; no friend comes along.
+        helper = None
     if helper == "auto":
         helper_choice = pick_helper(catalogue, stage, condition, table)
     elif isinstance(helper, int) and helper in catalogue:

@@ -26,7 +26,8 @@ MAX_TEAM_HP = 9296
 
 TEAM_HP_BOX = (795, 1870, 1095, 1960)
 MAP_BOX = (370, 128, 460, 176)
-TURN_BOX = (368, 183, 442, 232)
+# The scroll-icon counter under the map number counts drops collected, NOT turns.
+DROPS_BOX = (368, 183, 442, 232)
 POPUP_BOX = (0, 430, 1180, 900)
 
 DIGITS = "--psm 7 -c tessedit_char_whitelist=0123456789/"
@@ -131,7 +132,7 @@ for index, frame in enumerate(frames):
             "frame": frame.name,
             "time_s": round(START_OFFSET + index / FPS, 2),
             "map": parse_small_int(read(image, MAP_BOX), 9),
-            "turn": parse_small_int(read(image, TURN_BOX), 99),
+            "drops": parse_small_int(read(image, DROPS_BOX), 99),
             "team_hp": team_hp,
             "note": note,
         }
@@ -139,13 +140,13 @@ for index, frame in enumerate(frames):
 
 with OUT.open("w", encoding="utf-8", newline="") as handle:
     writer = csv.DictWriter(
-        handle, fieldnames=["frame", "time_s", "map", "turn", "team_hp", "note"]
+        handle, fieldnames=["frame", "time_s", "map", "drops", "team_hp", "note"]
     )
     writer.writeheader()
     writer.writerows(rows)
 
 read_hp = sum(1 for r in rows if r["team_hp"] is not None)
-read_turn = sum(1 for r in rows if r["turn"] is not None)
+read_drops = sum(1 for r in rows if r["drops"] is not None)
 read_map = sum(1 for r in rows if r["map"] is not None)
-print(f"frames={len(rows)} hp={read_hp} turn={read_turn} map={read_map}")
+print(f"frames={len(rows)} hp={read_hp} drops={read_drops} map={read_map}")
 print(f"wrote {OUT}")

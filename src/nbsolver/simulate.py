@@ -54,8 +54,9 @@ PLAIN_INTERVAL = 3
 ATTACK_HITS = 1
 # "Perimeter Barrier" ships with no description; on record it is a 2.5x attack.
 PERIMETER_BARRIER = 2.5
-# Completing a map restores "a little" health; no source publishes how much.
-MAP_RESTORE = 0.05
+# Completing a map gives back half the health lost so far: measured on both map
+# changes of the player's recorded e3003 clear (+378 of 756, +635 of 1270).
+MAP_RESTORE = 0.5
 # Long enough for any real clear; anything slower is treated as a loss.
 MAX_ACTIONS = 400
 
@@ -77,10 +78,6 @@ UNVERIFIED = (
         " of the target; the game's exact joining rule is not published."
     ),
     "A support switches in only when the unit in front of it is immobilised.",
-    (
-        "Completing a map restores 5% of the team's health (plus any abilities that"
-        " add to it); the game's own figure is not published."
-    ),
 )
 
 TARGETS_RE = re.compile(r"(\d+)\s*enem", re.IGNORECASE)
@@ -986,11 +983,11 @@ def play_road(
 
 
 def _restore(squad: Squad) -> None:
-    """The health a team gets back for completing a map."""
+    """Completing a map gives back half the health lost, plus any ability bonus."""
     team = squad.state.team
     if team.wiped:
         return
-    gain = team.max_health * MAP_RESTORE + sum(
+    gain = (team.max_health - team.health) * MAP_RESTORE + sum(
         m.own_passive.map_heal for m in squad.members.values()
     )
     team.health = min(team.max_health, team.health + round(gain))
