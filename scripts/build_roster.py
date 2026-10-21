@@ -1,4 +1,9 @@
-"""Write the roster confirmed from the player's screenshots and validate it."""
+"""Check the roster against the team confirmed from the player's screenshots.
+
+This used to write the roster; the box recording now does that, so this only
+confirms the hand-checked team is in it at the same level, and that the model
+reproduces the team HP the game showed.
+"""
 
 import json
 import sys
@@ -11,7 +16,7 @@ from nbsolver.roster import Roster
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "data" / "rosters" / "example.json"
+ROSTER = ROOT / "data" / "rosters" / "example.json"
 
 # unit_id, level, limit breaks, is helper
 TEAM = [
@@ -30,24 +35,27 @@ catalogue = {
     for u in (Unit.model_validate(r) for r in json.loads(UNITS_PATH.read_text("utf-8")))
 }
 
-roster = Roster(player_id="REDACTED")
+roster = Roster.load(ROSTER)
 total_hp = 0
+missing = 0
 for unit_id, level, limit_break, helper in TEAM:
     unit = catalogue[unit_id]
     if not helper:
-        roster.add(unit_id, level=level, limit_break=limit_break, manual=True)
+        held = [
+            (u.level, u.limit_break)
+            for u in roster.copies_of(unit_id)
+            if (u.level, u.limit_break) == (level, limit_break)
+        ]
+        missing += not held
     stats = unit.stats_at(level)
     total_hp += stats.health
-    tag = " (helper)" if helper else ""
+    tag = " (helper)" if helper else ("" if held else " NOT IN ROSTER")
     print(
         f"{unit.name:<18} {unit.title:<24} {unit.element:<8} lv{level:<4}"
         f" hp={stats.health:<6} atk={stats.attack:<6} cost={unit.cost}{tag}"
     )
 
-OUT.parent.mkdir(parents=True, exist_ok=True)
-roster.save(OUT)
-
 print(f"\nteam HP from model : {total_hp}")
 print(f"team HP observed   : {OBSERVED_TEAM_HP}")
 print("MATCH" if total_hp == OBSERVED_TEAM_HP else "MISMATCH")
-print(f"\nsaved {OUT}")
+print(f"\n{len(roster.units)} units in {ROSTER}; confirmed team missing: {missing}")

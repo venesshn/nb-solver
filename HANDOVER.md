@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **133 passing** at `62a8dfc` |
+| Tests | **pytest** — **148 passing** (was 133 at `62a8dfc`) |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -137,7 +137,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             10 files, 133 tests
+tests/             11 files, 148 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -405,6 +405,19 @@ only 15/34 in the "trusted" ≥0.05 band — so the margin rule does not hold.
 **`data/rosters/example.json` is now the real roster** (83 copies, 61 unit_ids),
 and all 5 hand-entered placeholder units reappear with identical level and LB.
 
+**Automatic reader — `src/nbsolver/box_reader.py` + `scripts/read_visits.py`.**
+Tesseract on the banner (name rows 558–616, title rows 622–660, white text via
+the darkest channel > 170, 2× upscale) snapped to the closed set of units of the
+counted rarity; stars counted as yellow blobs; level plaque OCR'd with a
+`0-9/MAX` whitelist (a faint red "M" can drop out — the parser accepts `AX`).
+**83/83 exact on v2** (tuned there), and on **run 1 as a held-out set**
+(`box_visits.py` → 83 visits too) its 83 reads equal v2's labels exactly as a
+multiset — box order differed between the recordings. Pipeline now:
+`box_visits.py VIDEO OUT` → `read_visits.py OUT report.json --roster
+data/rosters/example.json` (refuses to write if any page is flagged).
+`build_roster.py` no longer writes the roster; it checks the confirmed team is
+in it and the team HP still matches.
+
 First pass, superseded: 166 stills → 157 pages → 57 name clusters, "the same 54
 as run 1 plus 3". Outputs in `data/analysis/box_v2/`, `pages_v2/`,
 `box_reading_v2.json`, `visits_v2/`.
@@ -636,7 +649,7 @@ match at one known scale.**
   `battle.py` and verified against real Orochimaru data
 - Portrait library: 551 icons, 551/551 slug matches, 1,089/1,100 units covered
 - Roster reading: 138 pages → 54 characters, 21 confidently named
-- **133 tests passing, ruff clean**
+- **148 tests passing, ruff clean**
 
 **In progress**
 
