@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from nbsolver.ai import AiScript, parse_script
 from nbsolver.effects import Effect, EffectMode, EffectSet
 from nbsolver.models import AttackRange, Element
 
@@ -150,6 +151,11 @@ class EnemyStats(BaseModel):
     def resistances(self) -> list[Effect]:
         """What it shrugs off, so the solver stops offering ailments that cannot land."""
         return [e for line in self.defences for e in EffectSet.parse(line).effects]
+
+    @cached_property
+    def ai(self) -> AiScript:
+        """Its state machine: countdowns, jutsu choices and the branches between."""
+        return parse_script(self.ai_states)
 
 
 class WaveSpawn(BaseModel):
