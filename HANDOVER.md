@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **210 passing** |
+| Tests | **pytest** — **211 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             16 files, 210 tests
+tests/             16 files, 211 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -791,7 +791,9 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
     missions x 3 objectives (24); `--set spread` = 48 seeded stages.
     Player set: clears found 8 -> 14 of 24, mean 19% -> 38%. Spread: 42 ->
     44 of 48, mean 80% -> 86%. 10 player objectives still 0%.
-- **210 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
+- TURN ORDER (player-confirmed): pair 1, pair 2, pair 3 (the helper's) - fixed slot
+  order every round. It used to sort by Speed, which only Ninja World uses.
+- **211 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 

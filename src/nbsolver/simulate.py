@@ -1211,12 +1211,12 @@ def _play_map(
                     "enemy": True,
                 }
         while True:
-            order_now = sorted(team.on_field, key=lambda k: -members[k].speed())
-            for key in order_now:
+            # Missions take turns in a fixed order, pair 1, 2, then 3 (the helper's);
+            # Speed only matters in the Ninja World battles (player-confirmed).
+            for slot in range(len(team.on_field)):
+                key = team.on_field[slot]
                 if state.over or (boss_rule and bosses and _cleared(state, bosses)):
                     break
-                if key not in team.on_field:
-                    continue
                 swapped = _swap_in(state, key)
                 if swapped is not None:
                     key = swapped

@@ -287,6 +287,36 @@ def test_substitution_plus_percent_is_a_chance_not_a_certainty():
     assert found and found[0].chance == 30
 
 
+def test_turns_go_pair_one_two_then_the_helper():
+    """Player-confirmed: pair 1 acts, then pair 2, then pair 3 (the helper's)."""
+    u = units()
+    front = [
+        Member("tsunade", u[11066], 150),
+        Member("deidara", u[12416], 135),
+        helper_member(u[12666]),
+    ]
+    back = [
+        Member("itachi", u[10966], 100),
+        Member("hiruzen", u[10906], 100),
+        Member("hinata", u[12636], 100),
+    ]
+    run = play_stage(stage(), front, back, random.Random(3), record=True)
+    pair = {
+        "tsunade": 1,
+        "itachi": 1,
+        "deidara": 2,
+        "hiruzen": 2,
+        "helper": 3,
+        "hinata": 3,
+    }
+    by_wave: dict[tuple[int, int], list[int]] = {}
+    for f in run.frames:
+        by_wave.setdefault((f.map, f.wave), []).append(pair[f.actor])
+    assert len(run.frames) >= 6
+    for slots in by_wave.values():
+        assert slots == [1, 2, 3] * (len(slots) // 3) + [1, 2, 3][: len(slots) % 3]
+
+
 def test_teams_are_always_three_pairs():
     roster = Roster.load(DATA / "rosters" / "example.json")
     with_helper = solve(stage(), roster, units(), helper=12666, tries=6)
