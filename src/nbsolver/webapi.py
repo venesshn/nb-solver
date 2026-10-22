@@ -41,8 +41,8 @@ def solve_json(
     chosen = (
         stage.conditions[condition] if 0 <= condition < len(stage.conditions) else None
     )
-    helping: int | str | None = "auto" if helper == "auto" else None
-    if helper not in ("auto", "none", ""):
+    helping: int | str | None = helper if helper in ("auto", "self") else None
+    if helper not in ("auto", "self", "none", ""):
         helping = int(helper)
 
     def report(done: int, total: int) -> None:

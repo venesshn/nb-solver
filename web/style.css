@@ -45,8 +45,13 @@ td button { padding: 2px 8px; }
 .verdict { font-size: 1.25rem; font-weight: 600; margin: 0 0 6px; }
 .verdict.good { color: var(--good); }
 .verdict.bad { color: var(--bad); }
-.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin: 10px 0; }
+.teams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.pair { display: flex; flex-direction: column; gap: 6px; }
+.pair-label { color: var(--muted); font-size: .75rem; text-align: center; letter-spacing: .05em; text-transform: uppercase; }
 .unit { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #12161f; }
+.unit.helper { border-style: dashed; }
+.unit.empty { opacity: .5; }
+@media (max-width: 560px) { .teams { gap: 6px; } .unit { padding: 6px; } .unit .title { font-size: .75rem; } }
 .unit .slot { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
 .unit .name { font-weight: 600; }
 .unit .title { color: var(--muted); font-size: .85rem; }

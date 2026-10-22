@@ -17,7 +17,16 @@ from nbsolver.combat import element_multiplier
 from nbsolver.missions import ClearCondition, ConditionKind, Stage, UnitBoost
 from nbsolver.models import OwnedUnit, Unit
 from nbsolver.roster import Roster
-from nbsolver.simulate import UNVERIFIED, Member, Run, play_road, play_stage
+from nbsolver.simulate import (
+    STYLE,
+    STYLES,
+    UNVERIFIED,
+    Member,
+    Run,
+    Style,
+    play_road,
+    play_stage,
+)
 
 IMPOSSIBLE = "Not possible to complete - keep grinding!"
 NOT_FOUND = "No winning strategy found."
@@ -26,6 +35,18 @@ NOT_FOUND = "No winning strategy found."
 PAIRS = 3
 SHORTLIST = 10
 FINALISTS = 3
+# Grinding advice: teams tried per suggestion, and how much a suggestion must raise
+# the clear rate before it is shown at all.
+ADVICE_TEAMS = 2
+ADVICE_MARGIN = 0.05
+# Suggestions of each kind tried: levelling, ability unlocks, units to get.
+ADVICE_STEPS = 3
+# Below this clear rate the report also says what grinding would raise it.
+ADVISE_BELOW = 0.8
+# Play styles: how many leading teams try every style, and the clear rate above
+# which the default style is good enough to skip the search.
+STYLE_TEAMS = 2
+STYLE_SKIP_ABOVE = 0.95
 # Conditions the simulator cannot judge yet; the report says so rather than guess.
 UNJUDGED = {ConditionKind.OTHER}
 
@@ -43,6 +64,15 @@ class Choice:
     # Multipliers a mission grants this unit, e.g. Ninja Road's featured units.
     health_x: float = 1.0
     attack_x: float = 1.0
+    # A helper made by copying one of the player's own units (Revival lets you).
+    mine: bool = False
+    # What the character itself costs, which per-character caps judge; a helper
+    # adds nothing to the team total, but its own cost still has to pass a cap.
+    card_cost: int | None = None
+
+    @property
+    def own_cost(self) -> int:
+        return self.cost if self.card_cost is None else self.card_cost
 
     def member(self, key: str) -> Member:
         return Member(
@@ -64,6 +94,7 @@ class Plan:
     helper: Choice | None
     runs: list[Run] = field(default_factory=list)
     successes: int = 0
+    style: Style = STYLE
 
     @property
     def tries(self) -> int:
@@ -129,11 +160,16 @@ def wilson(successes: int, tries: int, z: float = 1.96) -> tuple[float, float]:
     return max(0.0, centre - spread), min(1.0, centre + spread)
 
 
-def _allowed(unit: Unit, condition: ClearCondition | None) -> bool:
+def _allowed(
+    unit: Unit, condition: ClearCondition | None, cost: int | None = None
+) -> bool:
     if condition is None:
         return True
     if condition.kind == ConditionKind.ELEMENT_ONLY:
         return unit.element == condition.element
+    if condition.kind == ConditionKind.COST_CAP and condition.max_cost:
+        # "Character cost 28 or lower only" limits every character, not the team.
+        return (unit.cost if cost is None else cost) <= condition.max_cost
     if condition.kind == ConditionKind.AFFILIATION_ONLY:
         wanted = condition.affiliation.lower()
         return any(
@@ -239,11 +275,50 @@ def helper_candidates(
     so the solver plays each before choosing."""
     elements = _enemy_elements(stage)
     pool = [
-        _boosted(Choice(unit=u, level=u.max_level, cost=0, helper=True), boosts or {})
+        _boosted(
+            Choice(unit=u, level=u.max_level, cost=0, helper=True, card_cost=u.cost),
+            boosts or {},
+        )
         for u in catalogue.values()
         if u.in_revival and u.rarity >= 6 and u.levels and _allowed(u, condition)
     ]
     return sorted(pool, key=lambda c: -power(c, elements))[:count]
+
+
+def as_helper(choice: Choice) -> Choice:
+    """Revival lets a player copy one of their own units into the helper slot: the
+    same level and abilities, free on the team cost (player-confirmed)."""
+    return Choice(
+        unit=choice.unit,
+        level=choice.level,
+        cost=0,
+        helper=True,
+        abilities=choice.abilities,
+        health_x=choice.health_x,
+        attack_x=choice.attack_x,
+        mine=True,
+        card_cost=choice.cost,
+    )
+
+
+def own_helper_candidates(
+    choices: list[Choice],
+    stage: Stage,
+    condition: ClearCondition | None,
+    count: int = 4,
+) -> list[Choice]:
+    """The player's own strongest eligible units, as copies for the helper slot."""
+    elements = _enemy_elements(stage)
+    best: dict[int, Choice] = {}
+    for c in choices:
+        if not _allowed(c.unit, condition, c.cost):
+            continue
+        if c.unit.unit_id not in best or power(c, elements) > power(
+            best[c.unit.unit_id], elements
+        ):
+            best[c.unit.unit_id] = c
+    ranked = sorted(best.values(), key=lambda c: -power(c, elements))
+    return [as_helper(c) for c in ranked[:count]]
 
 
 def _trial_helper(
@@ -255,17 +330,17 @@ def _trial_helper(
     seed: int,
 ) -> Choice | None:
     """Play a few quick runs with each candidate, going without included."""
-    best: tuple[float, float, Choice | None] | None = None
+    best: tuple[tuple[float, float, float], Choice | None] | None = None
     for candidate in candidates:
         plans = shortlist(choices, candidate, stage, limit, condition)
         if not plans:
             continue
         plan = plans[0]
         _play(plan, stage, 6, seed + 11, condition)
-        score = (plan.rate, -_mean_turns(plan))
-        if best is None or score > best[:2]:
-            best = (*score, candidate)
-    return best[2] if best else None
+        score = _rank(plan)
+        if best is None or score > best[0]:
+            best = (score, candidate)
+    return best[1] if best else None
 
 
 def _satisfied(run: Run, plan: Plan, condition: ClearCondition | None) -> bool:
@@ -285,7 +360,8 @@ def _satisfied(run: Run, plan: Plan, condition: ClearCondition | None) -> bool:
     if kind == ConditionKind.DROP_COMPLETE:
         return run.all_drops
     if kind == ConditionKind.COST_CAP and condition.max_cost:
-        return plan.cost <= condition.max_cost
+        everyone = [*plan.front, *plan.back, *([plan.helper] if plan.helper else [])]
+        return all(c.own_cost <= condition.max_cost for c in everyone)
     return True
 
 
@@ -295,14 +371,16 @@ def _legal(plan: Plan, limit: int, condition: ClearCondition | None) -> bool:
     capped = (
         condition and condition.kind == ConditionKind.COST_CAP and condition.max_cost
     )
-    if capped and plan.cost > condition.max_cost:
+    everyone = [*plan.front, *plan.back, *([plan.helper] if plan.helper else [])]
+    if capped and any(c.own_cost > condition.max_cost for c in everyone):
         return False
-    if condition and condition.kind == ConditionKind.REQUIRE_UNITS:
-        everyone = [*plan.front, *plan.back, *([plan.helper] if plan.helper else [])]
-        if sum(_requires(c.unit, condition) for c in everyone) < (
-            condition.required_count or 1
-        ):
-            return False
+    if (
+        condition
+        and condition.kind == ConditionKind.REQUIRE_UNITS
+        and sum(_requires(c.unit, condition) for c in everyone)
+        < (condition.required_count or 1)
+    ):
+        return False
     ids = [c.unit.unit_id for c in [*plan.front, *plan.back]]
     return len(ids) == len(set(ids))
 
@@ -344,6 +422,7 @@ def _play(
             back,
             random.Random(seed * 7919 + len(plan.runs) + k),
             objective=objective,
+            style=plan.style,
         )
         plan.runs.append(run)
         plan.successes += _satisfied(run, plan, condition)
@@ -357,7 +436,7 @@ def shortlist(
     condition: ClearCondition | None,
 ) -> list[Plan]:
     elements = _enemy_elements(stage)
-    pool = [c for c in choices if _allowed(c.unit, condition)]
+    pool = [c for c in choices if _allowed(c.unit, condition, c.cost)]
     best_copy: dict[int, Choice] = {}
     for c in pool:
         if c.unit.unit_id not in best_copy or power(c, elements) > power(
@@ -373,12 +452,6 @@ def shortlist(
     for front in itertools.combinations(top, size):
         front = list(front)
         budget = limit - sum(c.cost for c in front)
-        if (
-            condition
-            and condition.kind == ConditionKind.COST_CAP
-            and condition.max_cost
-        ):
-            budget = min(budget, condition.max_cost - sum(c.cost for c in front))
         if budget < 0:
             continue
         # One support behind every front unit, the helper's included.
@@ -407,6 +480,7 @@ def _describe(choice: Choice) -> dict:
         "level": choice.level,
         "cost": choice.cost,
         "helper": choice.helper,
+        "mine": choice.mine,
         "boost": (
             [choice.health_x, choice.attack_x]
             if (choice.health_x, choice.attack_x) != (1.0, 1.0)
@@ -482,7 +556,7 @@ def solve(
             "message": f"The objective '{condition.description}' can't be checked by the simulator yet.",
         }
     choices = _choices(roster, catalogue, table)
-    eligible = [c for c in choices if _allowed(c.unit, condition)]
+    eligible = [c for c in choices if _allowed(c.unit, condition, c.cost)]
     if not eligible:
         return {
             "status": "impossible",
@@ -497,10 +571,17 @@ def solve(
     if teams > 1:
         # Ninja Road teams are the player's own six; no friend comes along.
         helper = None
-    if helper == "auto":
+    if helper in ("auto", "self"):
+        # "self": a copy of one of the player's own units; "auto": any unit a
+        # friend might lend, or going without.
+        candidates: list[Choice | None] = (
+            own_helper_candidates(choices, stage, condition)
+            if helper == "self"
+            else [None, *helper_candidates(catalogue, stage, condition, table)]
+        )
         helper_choice = _trial_helper(
             choices,
-            [None, *helper_candidates(catalogue, stage, condition, table)],
+            candidates or [None],
             stage,
             roster.team_cost_limit,
             condition,
@@ -508,10 +589,23 @@ def solve(
         )
     elif isinstance(helper, int) and helper in catalogue:
         unit = catalogue[helper]
-        if _allowed(unit, condition):
+        mine = [c for c in choices if c.unit.unit_id == helper]
+        if mine:
+            # The player owns it, so the helper slot takes a copy of their own.
+            helper_choice = as_helper(max(mine, key=lambda c: c.level))
+        else:
             helper_choice = _boosted(
-                Choice(unit=unit, level=unit.max_level, cost=0, helper=True), table
+                Choice(
+                    unit=unit,
+                    level=unit.max_level,
+                    cost=0,
+                    helper=True,
+                    card_cost=unit.cost,
+                ),
+                table,
             )
+        if not _allowed(unit, condition, helper_choice.own_cost):
+            helper_choice = None
 
     plans = shortlist(choices, helper_choice, stage, roster.team_cost_limit, condition)
     if not plans:
@@ -547,18 +641,42 @@ def solve(
             progress,
         )
     else:
+        screen = max(6, tries // 4)
+        steps = len(contenders) + FINALISTS
         for n, plan in enumerate(contenders):
-            _play(plan, stage, max(6, tries // 4), seed, condition)
+            _play(plan, stage, screen, seed, condition)
             if progress:
-                progress(n + 1, len(contenders) + FINALISTS)
-        finalists = sorted(contenders, key=lambda p: (-p.rate, _mean_turns(p)))[
+                progress(n + 1, steps)
+        # Players beat hard stages by changing how they play as well as who they
+        # bring: unless a team already clears nearly always, try the leading teams
+        # in every play style and keep whatever works best.
+        leaders = sorted(contenders, key=_rank, reverse=True)
+        variants: list[Plan] = []
+        if leaders and leaders[0].rate < STYLE_SKIP_ABOVE:
+            for lead in leaders[:STYLE_TEAMS]:
+                for style in STYLES[1:]:
+                    variants.append(
+                        Plan(
+                            front=lead.front,
+                            back=lead.back,
+                            helper=lead.helper,
+                            style=style,
+                        )
+                    )
+            steps += len(variants)
+            for n, plan in enumerate(variants):
+                _play(plan, stage, screen, seed, condition)
+                if progress:
+                    progress(len(contenders) + n + 1, steps)
+        finalists = sorted([*contenders, *variants], key=_rank, reverse=True)[
             :FINALISTS
         ]
+        done = steps - FINALISTS
         for n, plan in enumerate(finalists):
             _play(plan, stage, tries, seed + 1, condition)
             if progress:
-                progress(len(contenders) + n + 1, len(contenders) + FINALISTS)
-        best = max(finalists, key=lambda p: (p.rate, -_mean_turns(p)))
+                progress(done + n + 1, steps)
+        best = max(finalists, key=_rank)
 
     low, high = wilson(best.successes, best.tries)
     objective = condition.kind if condition else None
@@ -572,12 +690,27 @@ def solve(
         showcase = _attempt(best, stage, random.Random(10_000), objective, record=True)
 
     lineup = best.plans if isinstance(best, Road) else [best]
+    closest = min(
+        (r for r in best.runs if not r.won),
+        key=lambda r: (-r.reached_map, r.enemy_left),
+        default=None,
+    )
     report = {
         "status": "found" if best.successes else "not_found",
         "message": None if best.successes else NOT_FOUND,
         "likelihood": round(best.rate, 3),
         "interval": [round(low, 3), round(high, 3)],
         "tries": best.tries,
+        "style": None if isinstance(best, Road) else best.style.label,
+        "reached": (
+            {
+                "map": closest.reached_map,
+                "maps": len(stage.maps),
+                "enemy_left": round(closest.enemy_left, 3),
+            }
+            if closest is not None
+            else None
+        ),
         "team": _team(lineup[0], roster),
         "teams": [_team(p, roster) for p in lineup] if len(lineup) > 1 else None,
         "median_turns": _median([r.turns for r in best.runs if r.won]),
@@ -594,7 +727,7 @@ def solve(
         },
         "assumptions": list(UNVERIFIED),
     }
-    if not best.successes:
+    if best.rate < ADVISE_BELOW:
         report["recommendations"] = recommend(
             stage,
             roster,
@@ -605,6 +738,7 @@ def solve(
             seed,
             table,
             teams,
+            baseline=best.rate,
         )
     return report
 
@@ -630,7 +764,9 @@ def _attempt(
     if isinstance(best, Road):
         return play_road(stage, best.lineup(), rng, record=record, objective=objective)
     front, back = best.members()
-    return play_stage(stage, front, back, rng, record=record, objective=objective)
+    return play_stage(
+        stage, front, back, rng, record=record, objective=objective, style=best.style
+    )
 
 
 def _best_road(
@@ -666,7 +802,7 @@ def _best_road(
             road.successes += _satisfied(run, road, condition)
         if progress:
             progress(n + 1, len(roads))
-    return max(roads, key=lambda r: (r.rate, -_mean_turns(r)))
+    return max(roads, key=_rank)
 
 
 def _median(values: list[int]) -> float | None:
@@ -686,6 +822,16 @@ def _mean_turns(plan: Plan) -> float:
     return sum(wins) / len(wins) if wins else math.inf
 
 
+def _progress(plan: Plan | Road) -> float:
+    return sum(r.progress for r in plan.runs) / len(plan.runs) if plan.runs else 0.0
+
+
+def _rank(plan: Plan | Road) -> tuple[float, float, float]:
+    """Clear rate first; among teams that clear equally often (often never, on the
+    hardest stages), the one that gets closest; then the fastest."""
+    return (plan.rate, round(_progress(plan), 3), -_mean_turns(plan))
+
+
 def recommend(
     stage: Stage,
     roster: Roster,
@@ -696,8 +842,10 @@ def recommend(
     seed: int,
     table: Boosts | None = None,
     teams: int = 1,
+    baseline: float = 0.0,
 ) -> list[dict]:
-    """The least grinding that would turn this into a clear, cheapest first."""
+    """The least grinding that would raise the clear rate above `baseline`,
+    cheapest first. Steps that leave it no better are dropped."""
     table = table or {}
     elements = _enemy_elements(stage)
     ideas: list[tuple[int, str, Roster]] = []
@@ -707,25 +855,46 @@ def recommend(
             _boosted(Choice(unit=unit, level=unit.max_level, cost=0), table), elements
         )
 
-    # Levelling something already owned is the least grinding there is.
+    # Levelling something already owned is the least grinding there is; limit
+    # breaking past the normal cap, then unlocking abilities, come next.
     under = [
         (i, o, catalogue[o.unit_id])
         for i, o in enumerate(roster.units)
         if o.unit_id in catalogue
-        and _allowed(catalogue[o.unit_id], condition)
-        and o.level < catalogue[o.unit_id].max_level
+        and _allowed(catalogue[o.unit_id], condition, o.cost(catalogue[o.unit_id]))
+        and o.level < catalogue[o.unit_id].max_level_limit_break
     ]
     under.sort(key=lambda t: -strength(t[2]))
-    for index, owned, unit in under[:3]:
+    for index, owned, unit in under[:ADVICE_STEPS]:
         changed = roster.model_copy(deep=True)
-        changed.units[index].level = unit.max_level
-        ideas.append(
-            (
-                1,
-                f"Level {unit.name} '{unit.title}' from {owned.level} to {unit.max_level}",
-                changed,
+        if owned.level < unit.max_level:
+            changed.units[index].level = unit.max_level
+            text = f"Level {unit.name} '{unit.title}' from {owned.level} to {unit.max_level}"
+            ideas.append((1, text, changed))
+        else:
+            changed.units[index].level = unit.max_level_limit_break
+            text = (
+                f"Limit break {unit.name} '{unit.title}' from level {owned.level}"
+                f" to {unit.max_level_limit_break}"
             )
+            ideas.append((2, text, changed))
+
+    locked = [
+        (i, o, catalogue[o.unit_id])
+        for i, o in enumerate(roster.units)
+        if o.unit_id in catalogue
+        and _allowed(catalogue[o.unit_id], condition, o.cost(catalogue[o.unit_id]))
+        and o.unlocked_count(catalogue[o.unit_id]) < len(catalogue[o.unit_id].abilities)
+    ]
+    locked.sort(key=lambda t: -strength(t[2]))
+    for index, owned, unit in locked[:ADVICE_STEPS]:
+        changed = roster.model_copy(deep=True)
+        changed.units[index].dupes = len(unit.abilities)
+        changed.units[index].abilities_unlocked = []
+        text = (
+            f"Unlock all {len(unit.abilities)} abilities on {unit.name} '{unit.title}'"
         )
+        ideas.append((2, text, changed))
 
     owned_ids = {o.unit_id for o in roster.units}
     wanted = sorted(
@@ -736,11 +905,11 @@ def recommend(
             and u.rarity >= 5
             and u.levels
             and u.unit_id not in owned_ids
-            and _allowed(u, condition)
+            and _allowed(u, condition, u.cost)
         ),
         key=lambda u: -strength(u),
     )
-    for unit in wanted[:3]:
+    for unit in wanted[:ADVICE_STEPS]:
         changed = roster.model_copy(deep=True)
         changed.units.append(OwnedUnit(unit_id=unit.unit_id, level=unit.max_level))
         featured = table.get((unit.name, unit.title))
@@ -753,7 +922,7 @@ def recommend(
             f"Get {unit.name} '{unit.title}' ({unit.rarity}★, {unit.element}{note})"
             f" and level it to {unit.max_level}"
         )
-        ideas.append((2, step, changed))
+        ideas.append((3, step, changed))
 
     results = []
     for effort, text, changed in ideas:
@@ -775,8 +944,13 @@ def recommend(
                 None,
             )
         else:
-            trial = plans[0]
-            _play(trial, stage, max(6, tries // 3), seed + 3, condition)
+            # The strongest-looking team isn't always the winner; try a few.
+            for plan in plans[:ADVICE_TEAMS]:
+                _play(plan, stage, max(6, tries // 4), seed + 3, condition)
+            trial = max(plans[:ADVICE_TEAMS], key=_rank)
+        # Only advice that actually moves the simulated clear rate is worth giving.
+        if trial.rate <= baseline + ADVICE_MARGIN:
+            continue
         results.append(
             {"step": text, "effort": effort, "likelihood": round(trial.rate, 3)}
         )

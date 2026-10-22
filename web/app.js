@@ -282,7 +282,7 @@ $("stage").addEventListener("change", renderObjectives);
 document.querySelectorAll('input[name="goal"]').forEach((r) => r.addEventListener("change", renderObjectives));
 $("helper-mode").addEventListener("change", () => {
   $("helper-search").hidden = $("helper-mode").value !== "pick";
-  localStorage.setItem(`${STORE}helper-mode`, $("helper-mode").value);
+  localStorage.setItem(`${STORE}helper-mode-2`, $("helper-mode").value);
 });
 $("helper-search").addEventListener("change", () => localStorage.setItem(`${STORE}helper`, $("helper-search").value));
 
@@ -344,8 +344,22 @@ $("solve").addEventListener("click", () => {
 
 function unitCard(slot, c) {
   const boost = c.boost ? ` · <span class="flag">featured ${c.boost[0]}× HP, ${c.boost[1]}× STR</span>` : "";
-  return `<div class="unit"><div class="slot">${slot}</div><div class="name">${dot(c.element)}${escapeHtml(c.name)}</div>
-    <div class="title">${escapeHtml(c.title)} · ${c.rarity}★ · Lv ${c.level}${c.helper ? "" : ` · cost ${c.cost}`}${boost}</div></div>`;
+  const cost = c.helper ? (c.mine ? " · copy of your unit, free" : " · friend's, free") : ` · cost ${c.cost}`;
+  return `<div class="unit${c.helper ? " helper" : ""}"><div class="slot">${slot}</div><div class="name">${dot(c.element)}${escapeHtml(c.name)}</div>
+    <div class="title">${escapeHtml(c.title)} · ${c.rarity}★ · Lv ${c.level}${cost}${boost}</div></div>`;
+}
+
+// Three pairs side by side: each column is a front unit with its support below.
+function pairColumns(t) {
+  const fronts = [...t.front.map((c) => ["Front", c]), ...(t.helper ? [["Helper", t.helper]] : [])];
+  return fronts
+    .map(([slot, c], i) => {
+      const support = t.back[i];
+      return `<div class="pair"><div class="pair-label">Pair ${i + 1}</div>${unitCard(slot, c)}${
+        support ? unitCard("Support", support) : `<div class="unit empty"><div class="slot">Support</div><div class="title">none</div></div>`
+      }</div>`;
+    })
+    .join("");
 }
 
 function renderResult(report, mission, stage) {
@@ -356,8 +370,12 @@ function renderResult(report, mission, stage) {
     verdict.innerHTML = `<p class="verdict good">Clear likelihood ${pct}%</p>
       <p class="hint">95% range ${Math.round(report.interval[0] * 100)}–${Math.round(report.interval[1] * 100)}% over ${report.tries} simulated attempts${report.median_turns ? ` · typically ${report.median_turns} turns` : ""}.</p>`;
   } else if (report.status === "not_found") {
+    const r = report.reached;
+    const close = r
+      ? ` The closest attempt reached map ${r.map} of ${r.maps} with ${Math.round(r.enemy_left * 100)}% of the ${r.map === r.maps ? "boss's" : "enemies'"} health left.`
+      : "";
     verdict.innerHTML = `<p class="verdict bad">${escapeHtml(report.message)}</p>
-      <p class="hint">Best team below won 0 of ${report.tries} simulated attempts. That is not proof it can't be done — see the suggestions.</p>`;
+      <p class="hint">The best team below won 0 of ${report.tries} simulated attempts.${close} That is not proof it can't be done — see the suggestions.</p>`;
   } else if (report.status === "impossible") {
     verdict.innerHTML = `<p class="verdict bad">${escapeHtml(report.message)}</p><p>${escapeHtml(report.reason || "")}</p>`;
   } else {
@@ -366,9 +384,9 @@ function renderResult(report, mission, stage) {
 
   const team = report.team;
   const teamBlock = (t) =>
-    `<div class="teams">${t.front.map((c) => unitCard("Front", c)).join("")}${t.helper ? unitCard("Helper", t.helper) : ""}${t.back
-      .map((c) => unitCard("Support", c))
-      .join("")}</div><p class="hint">Team cost ${t.cost} / ${t.cost_limit}.</p>`;
+    `<div class="teams">${pairColumns(t)}</div><p class="hint">Team cost ${t.cost} / ${t.cost_limit}.${
+      report.style ? ` How to play it: ${escapeHtml(report.style)}.` : ""
+    }</p>`;
   if (report.teams && report.teams.length > 1) {
     const plan = report.showcase?.teams_by_map;
     $("team").innerHTML =
@@ -394,10 +412,12 @@ function renderResult(report, mission, stage) {
     ? `<h3>What it depends on</h3><ul>${report.depends_on.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`
     : "";
   $("advice").innerHTML = report.recommendations?.length
-    ? `<h3>Least grinding that could get you there</h3><ol>${report.recommendations
-        .map((r) => `<li>${escapeHtml(r.step)} — simulated clear rate ${Math.round(r.likelihood * 100)}%</li>`)
+    ? `<h3>Least grinding that would raise your chance</h3><ol>${report.recommendations
+        .map((r) => `<li>${escapeHtml(r.step)} — simulated clear rate ${Math.round(r.likelihood * 100)}% (now ${Math.round(report.likelihood * 100)}%)</li>`)
         .join("")}</ol>`
-    : "";
+    : report.recommendations
+      ? `<p class="hint">None of the grinding steps tried (levelling your strongest units, or getting the strongest units you don't own) raised the simulated clear rate.</p>`
+      : "";
   const assumptions = $("assumptions");
   assumptions.hidden = !report.assumptions?.length;
   assumptions.querySelector("ul").innerHTML = (report.assumptions || []).map((a) => `<li>${escapeHtml(a)}</li>`).join("");
@@ -434,7 +454,8 @@ window.addEventListener("resize", () => state.playback?.draw(1));
 
 async function start() {
   $("profile").value = state.profile;
-  $("helper-mode").value = localStorage.getItem(`${STORE}helper-mode`) || "none";
+  // A new key: copying your own unit became the default once Revival's rule was known.
+  $("helper-mode").value = localStorage.getItem(`${STORE}helper-mode-2`) || "self";
   $("helper-search").value = localStorage.getItem(`${STORE}helper`) || "";
   $("helper-search").hidden = $("helper-mode").value !== "pick";
   const [units, missions] = await Promise.all([

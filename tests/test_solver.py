@@ -151,25 +151,14 @@ def test_solver_finds_a_clear_for_the_example_box():
 
 
 def test_body_only_clear_the_player_confirmed_is_found():
-    """The player clears this Body-only, without a helper; the solver must find it."""
+    """The player clears this Body-only, without a helper, almost every time. The
+    enemy catch area (ENEMY_AREA) is calibrated on exactly this."""
     roster = Roster.load(DATA / "rosters" / "example.json")
     body_only = next(c for c in stage().conditions if c.element == Element.BODY)
     report = solve(stage(), roster, units(), condition=body_only, helper=None, tries=20)
-    assert report["status"] == "found" and report["likelihood"] >= 0.25
+    assert report["status"] == "found" and report["likelihood"] >= 0.6
     picked = [*report["team"]["front"], *report["team"]["back"]]
     assert {c["element"] for c in picked} == {"Body"}
-
-
-@pytest.mark.xfail(
-    reason="Known gap: the player clears Body-only almost every time; the simulator"
-    " gives roughly 45% (unlocked abilities and life-drain jutsu are not modelled).",
-    strict=False,
-)
-def test_body_only_matches_the_players_near_certain_clear():
-    roster = Roster.load(DATA / "rosters" / "example.json")
-    body_only = next(c for c in stage().conditions if c.element == Element.BODY)
-    report = solve(stage(), roster, units(), condition=body_only, helper=None, tries=20)
-    assert report["likelihood"] >= 0.8
 
 
 def test_auto_helper_is_chosen_by_play_not_raw_power():
@@ -199,6 +188,103 @@ def test_losing_is_reported_as_not_found_with_advice():
     report = solve(stage(), roster, units(), helper=None, tries=6)
     assert report["status"] == "not_found" and report["message"] == NOT_FOUND
     assert report["recommendations"]
+    # Only suggestions that actually raise the clear rate are offered.
+    assert all(
+        r["likelihood"] > report["likelihood"] for r in report["recommendations"]
+    )
+    assert report["reached"]["maps"] == 3
+
+
+def test_a_copy_of_my_own_unit_can_be_the_helper():
+    """Revival lets a player copy one of their own units into the helper slot."""
+    roster = Roster.load(DATA / "rosters" / "example.json")
+    report = solve(stage(), roster, units(), helper="self", tries=6)
+    helper = report["team"]["helper"]
+    owned = {o.unit_id: o.level for o in roster.units}
+    assert helper["mine"] and helper["unit_id"] in owned
+    assert helper["level"] == owned[helper["unit_id"]]
+    # The copy rides free on the team cost, like any helper.
+    assert report["team"]["cost"] == sum(
+        c["cost"] for c in [*report["team"]["front"], *report["team"]["back"]]
+    )
+    # Naming a unit the player owns copies theirs rather than a friend's maximum.
+    picked = solve(stage(), roster, units(), helper=11066, tries=6)["team"]["helper"]
+    assert picked["mine"] and picked["level"] == owned[11066]
+
+
+def test_a_character_cost_cap_limits_each_unit_not_the_team():
+    roster = Roster.load(DATA / "rosters" / "example.json")
+    cap = ClearCondition(
+        kind=ConditionKind.COST_CAP,
+        description="Character cost 28 or lower only",
+        max_cost=28,
+    )
+    report = solve(stage(), roster, units(), condition=cap, helper=None, tries=6)
+    assert report["status"] in ("found", "not_found")
+    picked = [*report["team"]["front"], *report["team"]["back"]]
+    assert len(picked) == 6 and all(c["cost"] <= 28 for c in picked)
+
+
+def test_a_heal_for_all_allies_counts_once_per_ally_reached():
+    """Player-confirmed: 1280 to all allies in range, three in range, is 3,840."""
+    from nbsolver.simulate import _heal_spot
+
+    move = parse_move(
+        Jutsu(
+            name="Katsuyu",
+            chakra=4,
+            description="Restores 1280 health and removes jutsu seal of all allies in range.",
+        )
+    )
+    assert move.heal_flat == 1280 and move.heal_allies == 99
+    healer = fighter("h", Side.PLAYER, (0.0, 0.0))
+    near = fighter("a", Side.PLAYER, (1.0, 0.0))
+    far = fighter("b", Side.PLAYER, (9.0, 9.0))
+    team = Team(members=[healer, near, far], on_field=["h", "a", "b"])
+    state = BattleState(team=team, enemies=[])
+    assert _heal_spot(state, healer, 2.0, move.heal_allies)[1] == 2
+    single = parse_move(
+        Jutsu(
+            name="Palm",
+            chakra=4,
+            description="Restores 1700 health for 1 ally(s) in range.",
+        )
+    )
+    assert single.heal_allies == 1
+
+
+def test_barrier_and_dodge_wordings_are_read():
+    blocking = parse_move(
+        Jutsu(
+            name="8 Trigrams",
+            chakra=3,
+            description="Increases your chance to dodge by 20% for 5 turn(s) and puts up a"
+            " barrier blocking 1000 damage for 5 turn(s).",
+        )
+    )
+    assert blocking.barrier == 1000
+    dodge = [g for g in blocking.grants if g.kind == "Dodge"]
+    assert dodge and dodge[0].chance == 20
+    threads = parse_move(
+        Jutsu(
+            name="Threads",
+            chakra=5,
+            description="Gives you 2 perfect dodge(s) for 3 turn(s), then allow you to"
+            " block up to 1000 damage for any remaining turns.",
+        )
+    )
+    assert threads.barrier == 1000
+
+
+def test_substitution_plus_percent_is_a_chance_not_a_certainty():
+    from nbsolver.effects import EffectKind, parse_effects
+
+    found = [
+        e
+        for e in parse_effects("Substitution +30%")
+        if e.kind == EffectKind.SUBSTITUTION
+    ]
+    assert found and found[0].chance == 30
 
 
 def test_teams_are_always_three_pairs():

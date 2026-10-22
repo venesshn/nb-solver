@@ -98,6 +98,7 @@ PERCENT_BY_RE = re.compile(r"by\s+(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 CHAKRA_AMOUNT_RE = re.compile(r"restoring\s+(\d+)\s*chakra", re.IGNORECASE)
 BY_AMOUNT_RE = re.compile(r"by\s+(\d+)(?!\s*%)")
 PLUS_PERCENT_RE = re.compile(r"\+\s*(\d+(?:\.\d+)?)\s*%")
+DODGE_BY_RE = re.compile(r"chance to dodge by (\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 ELEMENT_CHANGE_RE = re.compile(
     r"changes the element to\s+(Heart|Skill|Body|Bravery|Wisdom)", re.IGNORECASE
 )
@@ -358,7 +359,24 @@ def parse_effects(description: str) -> list[Effect]:
                 Effect(
                     kind=EffectKind.SUBSTITUTION,
                     mode=EffectMode.GRANT,
+                    # "+20%" is the dodge chance itself; leaving the default 100%
+                    # made every holder dodge every hit.
+                    chance=float(bonus.group(1)),
                     magnitude=float(bonus.group(1)),
+                    duration=int(duration.group(1)) if duration else None,
+                    targets_caster=caster,
+                    source=clause.strip(),
+                )
+            )
+
+        if dodge := DODGE_BY_RE.search(clause):
+            duration = DURATION_RE.search(clause)
+            effects.append(
+                Effect(
+                    kind=EffectKind.DODGE,
+                    mode=EffectMode.GRANT,
+                    chance=float(dodge.group(1)),
+                    magnitude=float(dodge.group(1)),
                     duration=int(duration.group(1)) if duration else None,
                     targets_caster=caster,
                     source=clause.strip(),

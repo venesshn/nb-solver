@@ -69,14 +69,15 @@
           <select id="objective" disabled></select>
         </fieldset>
         <div class="row">
-          <label>Friend's helper
+          <label>Helper
             <select id="helper-mode">
+              <option value="self">Copy of one of my units (best)</option>
               <option value="none">No helper</option>
-              <option value="pick">Choose my helper…</option>
-              <option value="auto">Best available (auto)</option>
+              <option value="pick">Choose the unit…</option>
+              <option value="auto">Best friend's unit (auto)</option>
             </select>
           </label>
-          <input id="helper-search" list="unit-list" placeholder="Helper unit…" hidden />
+          <input id="helper-search" list="unit-list" placeholder="Helper unit (yours is copied if you own it)…" hidden />
           <label>Thoroughness
             <select id="tries">
               <option value="20">Quick</option>

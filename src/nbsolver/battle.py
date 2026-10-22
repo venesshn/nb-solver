@@ -47,6 +47,9 @@ class BattleRules(BaseModel):
     plain_skill_every: int = 2
     # Extra distance beyond its own range at which an ally still joins a combination.
     combo_reach_bonus: float = 0.0
+    # How far around an attacking enemy other units get caught, as a share of its
+    # reach (its target is always hit). Unpublished; calibrated in simulate.py.
+    enemy_area: float = 1.0
 
 
 UNVERIFIED_RULES = ("knockback_distance",)
@@ -112,6 +115,8 @@ class Fighter(BaseModel):
     health: int = 0
     position: Position = (0.0, 0.0)
     chakra: float = 0.0
+    # The gauge holds twice a ninjutsu's cost, enough for a secret technique; 0: no cap.
+    chakra_max: float = 0.0
     barrier: float = 0.0
     # The number the game prints on an enemy portrait: turns until it attacks.
     countdown: int | None = None
@@ -953,16 +958,18 @@ def _self_cast(state: BattleState, enemy: Fighter, technique: Technique) -> list
 
 def _victims(state: BattleState, enemy: Fighter, target: Fighter) -> list[Fighter]:
     """An enemy's attack catches every player unit inside its range (player-confirmed),
-    and each one hit takes its own damage out of the shared pool."""
+    and each one hit takes its own damage out of the shared pool. How big that area
+    is on the map is unpublished: `enemy_area` scales it from the enemy's reach."""
     reach = max(1.0, enemy.reach)
     if math.dist(target.position, enemy.position) > reach + 0.01:
         return [target]
+    area = reach * state.rules.enemy_area
     others = [
         m
         for m in state.team.fielded()
         if m is not target
         and not m.defeated
-        and math.dist(m.position, enemy.position) <= reach
+        and math.dist(m.position, enemy.position) <= area
     ]
     return [target, *others]
 
@@ -1124,6 +1131,8 @@ def _give_chakra(state: BattleState, fighter: Fighter, amount: float) -> None:
     if fighter.has(EffectKind.CHAKRA_RECOVERY_SEAL, EffectMode.INFLICT):
         return
     fighter.chakra += amount
+    if fighter.chakra_max:
+        fighter.chakra = min(fighter.chakra, fighter.chakra_max)
 
 
 def take_turn(
