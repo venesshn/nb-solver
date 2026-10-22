@@ -64,7 +64,7 @@ found."**
 | Language | Python 3.12, package `nbsolver`, build backend `uv_build` |
 | Package manager | **uv**. Call `uv` directly — `python -m uv` does **not** work |
 | Lint/format | **ruff** |
-| Tests | **pytest** — **205 passing, 1 expected fail (known gap)** |
+| Tests | **pytest** — **210 passing** |
 | Models | **pydantic v2** |
 | Scraping | httpx, beautifulsoup4, lxml |
 | Imaging | opencv-python-headless, numpy, Pillow |
@@ -143,7 +143,7 @@ src/nbsolver/
   effects.py       status-effect taxonomy parser
   enums.py  extract.py  missions.py  models.py  roster.py
   scrape/blazingonline.py   scrape/fandom.py   scrape/hideoutgacha.py
-tests/             16 files, 206 tests
+tests/             16 files, 210 tests
 scripts/           ~22 scripts (see below)
 data/              catalogue, units, portraits, rosters, caches, analysis
 ```
@@ -758,7 +758,40 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   layout, enemy list, source and boost, data restored; re-run was clean.
 - Abilities: user says "some, on main units" but which is unknown; the box
   keeps 0 and the user sets them per unit in the site's Abilities column.
-- **205 tests passing (+1 xfail), ruff clean.** `tests/test_build_web.py` imports the solver
+- **2026-10-22 (player's feedback after using the site):**
+  - Helper default = a COPY OF ONE OF YOUR OWN UNITS (Revival feature,
+    player-confirmed free on cost): `helper="self"`, `as_helper`,
+    `own_helper_candidates`; naming an owned unit copies the player's own.
+    Site key `helper-mode-2` so old 'none' choices don't hide the default.
+  - Teams render as 3 pair columns (front over support; helper = pair 3).
+  - Advice only if it beats the current rate by >5 points; runs below 80%;
+    now also limit break (to `max_level_limit_break`, 150) and ability
+    unlocks; 2 teams tried per idea. `reached` = closest losing attempt.
+  - BUG: 'Character cost 28 or lower only' was a TEAM total of 28 -> always
+    impossible. Now per character (`_allowed(..., cost)`, `Choice.own_cost`).
+  - BUG: 'Substitution +N%' gave chance 100 -> 24 enemies dodged every hit.
+  - hideoutgacha battle guide (data/analysis/hideout_bm.txt): a NORMAL ATTACK
+    LANDS ON EVERY ENEMY IN RANGE; chakra gauge caps at 2x ninjutsu cost.
+    Both now modelled (`_caught`, `chakra_max`). 'all enemies in range'
+    jutsu used to hit the whole map; now within the unit's reach.
+  - Heals: 'all allies in range' adds the amount PER ALLY reached
+    (player-confirmed: 1280 x3 = 3,840); healer moves to cover most.
+    More barrier ('barrier blocking N', 'block up to N') and dodge
+    ('chance to dodge by N%') wordings parsed.
+  - Policy: chakra cheap on bosses, free when the gauge is full; 4 play
+    STYLES (balanced/all-out/careful/boss rush) tried on the 2 leading teams;
+    teams ranked by clear rate, then PROGRESS (how close losses got).
+  - ENEMY_AREA = 0.75 (other units caught within 0.75 x enemy reach).
+    Sensitivity: enemy hitting only its target took the e3003 Body team
+    from 5/40 to 26/40 - the dominant unknown. Calibrated: area <= 0.75 ->
+    Body 65-80%, 1.0 -> 10-20%; Heart 100% throughout.
+  - Speed: per-run 149 -> ~75 ms (CPython) by weighing only 4 targets per
+    decision and checking a switch only when it could matter.
+  - `scripts/benchmark.py`: `--set player` = the player's 8 unbeaten
+    missions x 3 objectives (24); `--set spread` = 48 seeded stages.
+    Player set: clears found 8 -> 14 of 24, mean 19% -> 38%. Spread: 42 ->
+    44 of 48, mean 80% -> 86%. 10 player objectives still 0%.
+- **210 tests passing, ruff clean.** `tests/test_build_web.py` imports the solver
   from the shipped zip alone — a module left out of the browser build fails CI
   (it happened once: `passives.py`).
 
@@ -768,7 +801,9 @@ runs `.github/workflows/pages.yml`: ruff → pytest → `build_web.py` → Pages
   attack distances, combination joining rule, script-less enemy rhythm (3;
   ~75% of distinct enemies, almost all ordinary - 1 of ~1,384 bosses), hits
   per attack (6, jutsu 10).
-- Body-only e3003 under-predicts the user's near-certain clear (xfail test).
+- Body-only e3003 now ~65-80% (calibrated); the player says near-certain.
+- ENEMY_AREA rests on one calibration stage; the 8 unbeaten missions only
+  bound it from the other side (they must not come out easy).
 - Ninja Road: the team-to-map choice is a heuristic; NR #1 still ends at map
   15 in simulation.
 - Two calibration points (both e3003) can't prove accuracy everywhere.

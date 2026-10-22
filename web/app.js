@@ -416,7 +416,7 @@ function renderResult(report, mission, stage) {
         .map((r) => `<li>${escapeHtml(r.step)} — simulated clear rate ${Math.round(r.likelihood * 100)}% (now ${Math.round(report.likelihood * 100)}%)</li>`)
         .join("")}</ol>`
     : report.recommendations
-      ? `<p class="hint">None of the grinding steps tried (levelling your strongest units, or getting the strongest units you don't own) raised the simulated clear rate.</p>`
+      ? `<p class="hint">None of the grinding steps tried (levelling or limit breaking your strongest units, unlocking their abilities, or getting the strongest units you don't own) raised the simulated clear rate.</p>`
       : "";
   const assumptions = $("assumptions");
   assumptions.hidden = !report.assumptions?.length;
